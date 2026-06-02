@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   View,
   Alert,
+  SafeAreaView,
+  StatusBar,
 } from "react-native";
 import api from "../services/api";
 
@@ -20,7 +22,7 @@ export default function LoginScreen({ navigation }: any) {
       return;
     }
 
-    setLoading(false);
+    setLoading(true);
     try {
       const response = await api.post("/login", { email, password });
       const { user } = response.data;
@@ -40,89 +42,203 @@ export default function LoginScreen({ navigation }: any) {
     }
   };
 
+  const handleCancel = () => {
+    setEmail("");
+    setPassword("");
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      Alert.alert("Cancelado", "Campos limpiados");
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.logo}>alToque</Text>
-      <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F5F7F6" />
+      
+      <View style={styles.header}>
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Correo Electrónico"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+      <View style={styles.content}>
+              <Text style={styles.logo}>alToque</Text>
+              <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+        <View style={styles.card}>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="tu@email.com"
+              placeholderTextColor="#9AA6A3"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Cargando..." : "Login"}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={{ marginTop: 20 }}
-        onPress={() => navigation.navigate("Register")}
-      >
-        <Text style={{ color: "#666", textAlign: "center" }}>
-          ¿No tienes cuenta?{" "}
-          <Text style={{ color: "#00C853", fontWeight: "bold" }}>
-            Regístrate
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="••••••••"
+              placeholderTextColor="#9AA6A3"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          <TouchableOpacity style={styles.forgotPasswordButton}>
+            <Text style={styles.forgotPasswordText}>Olvidaste tu contraseña?</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.loginButtonText}>
+              {loading ? "Cargando..." : "Ingresar"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+          <Text style={styles.footerText}>
+            No tenes una cuenta? <Text style={styles.signUpText}>Registrate acá</Text>
           </Text>
-        </Text>
-      </TouchableOpacity>
-    </View>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#F5F7F6",
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+  },
+  headerTitle: {
+    fontSize: 16,
+    color: "#7E8B88",
+    fontWeight: "500",
+  },
+  content: {
     flex: 1,
     justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+    marginTop: -40,
   },
   logo: {
-    fontSize: 36,
+    fontSize: 38,
     fontWeight: "bold",
-    color: "#00C853",
+    color: "#056750",
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 3,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  input: {
-    height: 50,
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
-    borderRadius: 8,
+    borderColor: "#E2EAE7",
+    paddingVertical: 24,
     paddingHorizontal: 16,
-    marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: "#F5F5F5",
+    marginBottom: 28,
+    shadowColor: "#056750",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  button: {
-    height: 50,
-    backgroundColor: "#00C853",
-    borderRadius: 8,
+  inputContainer: {
+    borderWidth: 1,
+    borderColor: "#CCD7D3",
+    borderRadius: 10,
+    height: 52,
     justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 16,
+    marginVertical: 10,
+    position: "relative",
+    backgroundColor: "#FFFFFF",
+  },
+  inputLabel: {
+    position: "absolute",
+    top: -9,
+    left: 12,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 6,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4D5B57",
+  },
+  textInput: {
+    fontSize: 16,
+    color: "#1E2A27",
+    padding: 0,
+  },
+  forgotPasswordButton: {
+    alignSelf: "flex-end",
     marginTop: 8,
   },
-  buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
+  forgotPasswordText: {
+    color: "#056750",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  buttonContainer: {
+    gap: 12,
+  },
+  loginButton: {
+    height: 50,
+    backgroundColor: "#056750",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loginButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  cancelButton: {
+    height: 50,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#056750",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#056750",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  footer: {
+    paddingBottom: 24,
+    alignItems: "center",
+  },
+  footerText: {
+    color: "#5D6B68",
+    fontSize: 15,
+  },
+  signUpText: {
+    color: "#056750",
+    fontWeight: "bold",
+    },
+  subtitle: {
+    fontSize: 16,
+    color: "#5D6B68",
+    textAlign: "center",
+    marginBottom: 36,
+  },
 });
