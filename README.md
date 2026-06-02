@@ -49,7 +49,7 @@ Para encender el empaquetador de la aplicación móvil, ejecuta:
 npx expo start
 ```
 
-### 4. Ejecutar en tu dispositivo o emulador
+### 4. Ejecutar en tu dispositivo o emulador
 Una vez que el panel de Expo aparezca en tu terminal, utiliza los comandos nativos de la herramienta:
 * Presiona a en la terminal para abrir y desplegar la app en el emulador de Android.
 * Presiona i para hacer lo propio en el simulador de iOS.
