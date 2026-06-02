@@ -71,6 +71,17 @@ export default function LoginScreen({ navigation }: any) {
           {loading ? "Cargando..." : "Login"}
         </Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={{ marginTop: 20 }}
+        onPress={() => navigation.navigate("Register")}
+      >
+        <Text style={{ color: "#666", textAlign: "center" }}>
+          ¿No tienes cuenta?{" "}
+          <Text style={{ color: "#00C853", fontWeight: "bold" }}>
+            Regístrate
+          </Text>
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
