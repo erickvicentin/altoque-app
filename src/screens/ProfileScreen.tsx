@@ -10,9 +10,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import api from "../services/api";
 
 interface ProfileScreenProps {
@@ -30,6 +32,11 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [addressModalVisible, setAddressModalVisible] = useState(false);
+
+  // Selector states
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dateVal, setDateVal] = useState<Date>(new Date());
 
   // Form states
   const [name, setName] = useState(user.name || "");
@@ -55,6 +62,17 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
     return dateStr;
   };
 
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      setDateVal(selectedDate);
+      const day = String(selectedDate.getDate()).padStart(2, "0");
+      const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const year = selectedDate.getFullYear();
+      setBirthDate(`${year}-${month}-${day}`);
+    }
+  };
+
   const handleUpdate = async (fieldsToUpdate: any) => {
     setLoading(true);
     try {
@@ -78,7 +96,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
         error.response?.data?.message ||
         "No se pudo guardar la información en el servidor. Se aplicó localmente.";
       Alert.alert("Error de guardado", errorMsg);
-      
+
       // Fallback local en caso de que el backend falle o no esté disponible
       const fallbackUser = {
         ...user,
@@ -97,6 +115,23 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
       Alert.alert("Error", "Nombre y Apellido son requeridos");
       return;
     }
+
+    if (birthDate) {
+      const selected = new Date(birthDate + "T12:00:00");
+      const minDate = new Date("1925-01-01T12:00:00");
+      const maxDate = new Date();
+      maxDate.setFullYear(maxDate.getFullYear() - 18);
+
+      if (selected < minDate) {
+        Alert.alert("Fecha Inválida", "La fecha de nacimiento no puede ser anterior a 1925.");
+        return;
+      }
+      if (selected > maxDate) {
+        Alert.alert("Edad mínima requerida", "Debes tener al menos 18 años.");
+        return;
+      }
+    }
+
     handleUpdate({ name, last_name: lastName, birth_date: birthDate, gender });
     setPersonalDataModalVisible(false);
   };
@@ -133,12 +168,20 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
     setLastName(user.last_name || "");
     setBirthDate(user.birth_date || "");
     setGender(user.gender || "");
+
+    if (user.birth_date) {
+      setDateVal(new Date(user.birth_date + "T12:00:00"));
+    } else {
+      setDateVal(new Date(new Date().setFullYear(new Date().getFullYear() - 18)));
+    }
+
+    setDropdownOpen(false);
+    setShowDatePicker(false);
     setPersonalDataModalVisible(true);
   };
 
   const openPhoneModal = () => {
-    setPhone(user.phone || "");
-    setPhoneModalVisible(true);
+    navigation.navigate("EditPhone", { user, onUpdateUser });
   };
 
   const openEmailModal = () => {
@@ -214,7 +257,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
               {user.email}
             </Text>
           </View>
-          <TouchableOpacity style={styles.editButton} onPress={openEmailModal}>
+          <TouchableOpacity style={styles.editButton} onPress={() => Alert.alert("Información Importante", "El email no se puede editar. Para cambiarlo contacta a soporte.")}>
             <Text style={styles.editButtonText}>Editar</Text>
           </TouchableOpacity>
         </View>
@@ -232,8 +275,8 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
             <Text style={styles.rowSubtitle} numberOfLines={1}>
               {user.role === "client"
                 ? (user.addresses && user.addresses.length > 0
-                    ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line)
-                    : "No especificado")
+                  ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line)
+                  : "No especificado")
                 : (user.professional_profile?.shop_address || "No especificado")}
             </Text>
           </View>
@@ -287,39 +330,64 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Fecha de Nacimiento (AAAA-MM-DD)</Text>
-              <TextInput
-                style={styles.input}
-                value={birthDate}
-                onChangeText={setBirthDate}
-                placeholder="Ej. 1995-10-15"
-                placeholderTextColor="#bccac1"
-              />
+              <Text style={styles.inputLabel}>Fecha de Nacimiento</Text>
+              <TouchableOpacity
+                style={styles.inputPressable}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.inputPressableText}>
+                  {getDisplayDate(birthDate)}
+                </Text>
+                <MaterialIcons name="calendar-today" size={20} color="#3d4943" />
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={dateVal}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  minimumDate={new Date(1925, 0, 1)}
+                  maximumDate={
+                    new Date(new Date().setFullYear(new Date().getFullYear() - 18))
+                  }
+                  onChange={onDateChange}
+                />
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Género</Text>
-              <View style={styles.genderOptions}>
-                {["Hombre", "Mujer", "Otro", "Prefiero no decirlo"].map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[
-                      styles.genderChip,
-                      gender === opt && styles.genderChipActive,
-                    ]}
-                    onPress={() => selectGender(opt)}
-                  >
-                    <Text
-                      style={[
-                        styles.genderChipText,
-                        gender === opt && styles.genderChipTextActive,
-                      ]}
+              <TouchableOpacity
+                style={styles.dropdownSelector}
+                onPress={() => setDropdownOpen(!dropdownOpen)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dropdownSelectorText}>
+                  {gender || "Seleccionar género"}
+                </Text>
+                <MaterialIcons
+                  name={dropdownOpen ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color="#3d4943"
+                />
+              </TouchableOpacity>
+              {dropdownOpen && (
+                <View style={styles.dropdownOptions}>
+                  {["Hombre", "Mujer", "Otro", "Prefiero no decirlo"].map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={styles.dropdownOption}
+                      onPress={() => {
+                        setGender(opt);
+                        setDropdownOpen(false);
+                      }}
+                      activeOpacity={0.7}
                     >
-                      {opt}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                      <Text style={styles.dropdownOptionText}>{opt}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.modalButtons}>
@@ -690,5 +758,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  inputPressable: {
+    width: "100%",
+    height: 48,
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f7faf8",
+  },
+  inputPressableText: {
+    fontSize: 16,
+    color: "#181c1c",
+  },
+  dropdownSelector: {
+    width: "100%",
+    height: 48,
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f7faf8",
+  },
+  dropdownSelectorText: {
+    fontSize: 16,
+    color: "#181c1c",
+  },
+  dropdownOptions: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    marginTop: 4,
+    overflow: "hidden",
+  },
+  dropdownOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f4f2",
+  },
+  dropdownOptionText: {
+    fontSize: 15,
+    color: "#181c1c",
   },
 });
