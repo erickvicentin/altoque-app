@@ -150,8 +150,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
     if (user.role === "professional") {
       navigation.navigate("ProfessionalAddress", { user, onUpdateUser });
     } else {
-      setAddress(user.address?.address_line || "");
-      setAddressModalVisible(true);
+      navigation.navigate("ClientAddress", { user, onUpdateUser });
     }
   };
 
@@ -220,7 +219,6 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
           </TouchableOpacity>
         </View>
 
-        {/* Row 4: Ubicación */}
         <TouchableOpacity
           style={styles.settingsRow}
           onPress={openAddressModal}
@@ -233,8 +231,10 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
             </Text>
             <Text style={styles.rowSubtitle} numberOfLines={1}>
               {user.role === "client"
-                ? user.address?.address_line || "No especificado"
-                : user.professional_profile?.shop_address || "No especificado"}
+                ? (user.addresses && user.addresses.length > 0
+                    ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line)
+                    : "No especificado")
+                : (user.professional_profile?.shop_address || "No especificado")}
             </Text>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#3d4943" />
