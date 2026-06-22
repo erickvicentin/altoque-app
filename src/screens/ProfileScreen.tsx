@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Modal,
   TextInput,
   ScrollView,
@@ -83,7 +82,9 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
         birth_date: fieldsToUpdate.birth_date ?? user.birth_date,
         gender: fieldsToUpdate.gender ?? user.gender,
         phone: fieldsToUpdate.phone ?? user.phone,
-        address_line: user.role === "client" ? (fieldsToUpdate.address_line ?? user.address?.address_line) : undefined,
+        address_line: user.role === "client" 
+          ? (fieldsToUpdate.address_line ?? (user.addresses && user.addresses.length > 0 ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line) : undefined)) 
+          : undefined,
         shop_address: user.role === "professional" ? (fieldsToUpdate.shop_address ?? user.professional_profile?.shop_address) : undefined,
       };
 
@@ -203,13 +204,8 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
 
       {/* Avatar Section */}
       <View style={styles.avatarSection}>
-        <View style={styles.avatarWrapper}>
-          <Image
-            source={{
-              uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuAWjTpuuuxA_6FBhW1XKr0TPfREkJ-UclSjdP9vMuLFpgDTmZk3MR8lJWZgcmJMt9k4azpwhrHm4zqFQHWuQ8AgkAJ1RqnPWUdtW7HW5mX5TtxpVtLU3C3kO1c0qP1640eynfzO-60m3O2qfouGRI-QXwAfAFOy0wmddjd0DFITOYpuLsewbHNvaObAhuer4UMJrIJJ_iMOejk1FfubW7CEVTt8kfbfyRE8kOTJ5TZJceWkJOhueSEbrA2nKIwSQqpFtOunF5Dl1Q",
-            }}
-            style={styles.avatar}
-          />
+        <View style={[styles.avatarWrapper, styles.avatarPlaceholder]}>
+          <MaterialIcons name="person" size={80} color="#00694c" />
         </View>
         <TouchableOpacity style={styles.uploadBadge} activeOpacity={0.7}>
           <MaterialIcons name="arrow-upward" size={18} color="#00694c" />
@@ -557,6 +553,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#e6e9e7",
     borderWidth: 1,
     borderColor: "#bccac1",
+  },
+  avatarPlaceholder: {
+    backgroundColor: "#ebefed",
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatar: {
     width: "100%",
