@@ -1,9 +1,13 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
-import api from "../services/api";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, StatusBar, Platform } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import ProfileScreen from "./ProfileScreen";
+import BottomNavBar, { TabItem } from "./BottomNavBar";
 
 export default function HomeCliente({ route, navigation }: any) {
-  const { name } = route.params || { name: "Cliente" };
+  const { user: initialUser } = route.params || {};
+  const [user, setUser] = useState(initialUser || { name: "Cliente", role: "client" });
+  const [activeTab, setActiveTab] = useState("explorar");
 
   const handleLogout = async () => {
     try {
@@ -13,52 +17,160 @@ export default function HomeCliente({ route, navigation }: any) {
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.welcomeText}>¡Hola cliente, {name}!</Text>
-      <Text style={styles.subtitle}>
-        Pronto verás el listado de profesionales acá al toque.
-      </Text>
+  const clientTabs: TabItem[] = [
+    { key: "explorar", label: "Explorar", icon: "search" },
+    { key: "turnos", label: "Turnos", icon: "schedule" },
+    { key: "perfil", label: "Perfil", icon: "person" },
+  ];
 
-      {/* BOTÓN DE CERRAR SESIÓN */}
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
-      </TouchableOpacity>
-    </View>
+  const renderContent = () => {
+    switch (activeTab) {
+      case "explorar":
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.welcomeCard}>
+              <Text style={styles.welcomeText}>¡Hola cliente, {user.name}!</Text>
+              <Text style={styles.subtitle}>
+                Pronto verás el listado de profesionales acá al toque.
+              </Text>
+            </View>
+          </View>
+        );
+      case "turnos":
+        return (
+          <View style={styles.tabContent}>
+            <View style={styles.placeholderCard}>
+              <MaterialIcons name="schedule" size={64} color="#008560" style={styles.placeholderIcon} />
+              <Text style={styles.placeholderTitle}>Mis Turnos</Text>
+              <Text style={styles.placeholderSubtitle}>
+                Acá verás tus próximos turnos y reservas programadas.
+              </Text>
+            </View>
+          </View>
+        );
+      case "perfil":
+        return (
+          <ProfileScreen
+            user={user}
+            onUpdateUser={setUser}
+            onLogout={handleLogout}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f7faf8" />
+      
+      {/* TopAppBar */}
+      <View style={styles.header}>
+        <Text style={styles.logo}>alToque</Text>
+      </View>
+
+      {/* Main Content Area */}
+      <View style={styles.mainContent}>
+        {renderContent()}
+      </View>
+
+      {/* Bottom Navigation */}
+      <BottomNavBar
+        tabs={clientTabs}
+        activeTab={activeTab}
+        onTabPress={setActiveTab}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f7faf8",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    height: 56,
+    paddingHorizontal: 20,
+    backgroundColor: "#f7faf8",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e6e9e7",
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 20,
+  },
+  logo: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#181c1c",
+    textAlign: "center",
+    flex: 1,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  mainContent: {
+    flex: 1,
+  },
+  tabContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    backgroundColor: "#F5F5F5",
+    padding: 24,
+    paddingBottom: 100, // Safe space for bottom tab bar
+  },
+  welcomeCard: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   welcomeText: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#212121",
+    color: "#181c1c",
     marginBottom: 10,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 16,
-    color: "#666",
+    color: "#3d4943",
     textAlign: "center",
-    marginBottom: 40,
+    lineHeight: 22,
   },
-  logoutButton: {
-    marginTop: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    borderRadius: 8,
+  placeholderCard: {
+    alignItems: "center",
+    padding: 24,
   },
-  logoutButtonText: {
-    color: "#FF3B30", // Un color rojo suave para indicar "salida/peligro"
+  placeholderIcon: {
+    marginBottom: 16,
+  },
+  placeholderTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#181c1c",
+    marginBottom: 8,
+  },
+  placeholderSubtitle: {
     fontSize: 16,
-    fontWeight: "600",
+    color: "#3d4943",
+    textAlign: "center",
+    lineHeight: 22,
   },
 });
