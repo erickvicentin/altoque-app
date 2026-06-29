@@ -83,7 +83,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
         gender: fieldsToUpdate.gender ?? user.gender,
         phone: fieldsToUpdate.phone ?? user.phone,
         address_line: user.role === "client" 
-          ? (fieldsToUpdate.address_line ?? (user.addresses && user.addresses.length > 0 ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line) : undefined)) 
+          ? (fieldsToUpdate.address_line ?? (user.addresses && user.addresses.length > 0 ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line) : undefined)) 
           : undefined,
         shop_address: user.role === "professional" ? (fieldsToUpdate.shop_address ?? user.professional_profile?.shop_address) : undefined,
       };
@@ -271,7 +271,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
             <Text style={styles.rowSubtitle} numberOfLines={1}>
               {user.role === "client"
                 ? (user.addresses && user.addresses.length > 0
-                  ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line)
+                  ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line)
                   : "No especificado")
                 : (user.professional_profile?.shop_address || "No especificado")}
             </Text>

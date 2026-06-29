@@ -144,8 +144,8 @@ export default function ClientAddressScreen({ route, navigation }: any) {
     }
   };
 
-  const principalAddress = addresses.find((addr) => addr.alias === "Principal");
-  const otherAddresses = addresses.filter((addr) => addr.alias !== "Principal");
+  const principalAddress = addresses.find((addr) => addr.is_default);
+  const otherAddresses = addresses.filter((addr) => !addr.is_default);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -271,7 +271,7 @@ export default function ClientAddressScreen({ route, navigation }: any) {
             </KeyboardAvoidingView>
 
             {/* Extra Options for Editing */}
-            {editingAddress && editingAddress.alias !== "Principal" && (
+            {editingAddress && !editingAddress.is_default && (
               <TouchableOpacity
                 style={styles.optionRow}
                 onPress={handleSetPrincipal}
