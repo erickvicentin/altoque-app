@@ -273,7 +273,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
                 ? (user.addresses && user.addresses.length > 0
                   ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line)
                   : "No especificado")
-                : (user.professional_profile?.shop_address || "No especificado")}
+                : (user.professional_profile?.shop_address || "Dirección de atención deshabilitada.")}
             </Text>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#3d4943" />
@@ -282,7 +282,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
 
       {/* Logout button row */}
       <TouchableOpacity style={styles.logoutRow} onPress={onLogout} activeOpacity={0.7}>
-        <MaterialIcons name="exit-to-app" size={24} color="#ba1a1a" style={styles.rowIcon} />
+        <MaterialIcons name="exit-to-app" size={24} color="#ed0f0fff" style={styles.rowIcon} />
         <Text style={styles.logoutText}>Cerrar Sesión</Text>
       </TouchableOpacity>
 
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#ba1a1a",
+    color: "#ed0f0fff",
     marginLeft: 16,
   },
   loadingOverlay: {
