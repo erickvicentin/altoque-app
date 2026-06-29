@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   Alert,
@@ -13,6 +12,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../services/api";
 
@@ -77,15 +77,8 @@ export default function EditPhoneScreen({ route, navigation }: any) {
       console.log(error);
       const errorMsg =
         error.response?.data?.message ||
-        "No se pudo guardar en el servidor. Se actualizó localmente.";
+        "No se pudo guardar en el servidor. Por favor, verifica tu conexión.";
       Alert.alert("Error de guardado", errorMsg);
-
-      // Fallback local
-      onUpdateUser({
-        ...user,
-        phone: fullPhone,
-      });
-      navigation.goBack();
     } finally {
       setLoading(false);
     }
@@ -132,7 +125,7 @@ export default function EditPhoneScreen({ route, navigation }: any) {
               <TextInput
                 style={styles.phoneInput}
                 value={phoneNumber}
-                onChangeText={setPhoneNumber}
+                onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ""))}
                 placeholder="Número"
                 placeholderTextColor="#3d4943"
                 keyboardType="phone-pad"
