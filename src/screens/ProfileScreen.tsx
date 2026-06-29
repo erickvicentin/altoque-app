@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Modal,
   TextInput,
   ScrollView,
@@ -83,7 +82,9 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
         birth_date: fieldsToUpdate.birth_date ?? user.birth_date,
         gender: fieldsToUpdate.gender ?? user.gender,
         phone: fieldsToUpdate.phone ?? user.phone,
-        address_line: user.role === "client" ? (fieldsToUpdate.address_line ?? user.address?.address_line) : undefined,
+        address_line: user.role === "client" 
+          ? (fieldsToUpdate.address_line ?? (user.addresses && user.addresses.length > 0 ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line) : undefined)) 
+          : undefined,
         shop_address: user.role === "professional" ? (fieldsToUpdate.shop_address ?? user.professional_profile?.shop_address) : undefined,
       };
 
@@ -203,13 +204,8 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
 
       {/* Avatar Section */}
       <View style={styles.avatarSection}>
-        <View style={styles.avatarWrapper}>
-          <Image
-            source={{
-              uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuAWjTpuuuxA_6FBhW1XKr0TPfREkJ-UclSjdP9vMuLFpgDTmZk3MR8lJWZgcmJMt9k4azpwhrHm4zqFQHWuQ8AgkAJ1RqnPWUdtW7HW5mX5TtxpVtLU3C3kO1c0qP1640eynfzO-60m3O2qfouGRI-QXwAfAFOy0wmddjd0DFITOYpuLsewbHNvaObAhuer4UMJrIJJ_iMOejk1FfubW7CEVTt8kfbfyRE8kOTJ5TZJceWkJOhueSEbrA2nKIwSQqpFtOunF5Dl1Q",
-            }}
-            style={styles.avatar}
-          />
+        <View style={[styles.avatarWrapper, styles.avatarPlaceholder]}>
+          <MaterialIcons name="person" size={80} color="#00694c" />
         </View>
         <TouchableOpacity style={styles.uploadBadge} activeOpacity={0.7}>
           <MaterialIcons name="arrow-upward" size={18} color="#00694c" />
@@ -275,9 +271,9 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
             <Text style={styles.rowSubtitle} numberOfLines={1}>
               {user.role === "client"
                 ? (user.addresses && user.addresses.length > 0
-                  ? (user.addresses.find((addr: any) => addr.alias === "Principal")?.address_line || user.addresses[0].address_line)
+                  ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line)
                   : "No especificado")
-                : (user.professional_profile?.shop_address || "No especificado")}
+                : (user.professional_profile?.shop_address || "Dirección de atención deshabilitada.")}
             </Text>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#3d4943" />
@@ -286,7 +282,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
 
       {/* Logout button row */}
       <TouchableOpacity style={styles.logoutRow} onPress={onLogout} activeOpacity={0.7}>
-        <MaterialIcons name="exit-to-app" size={24} color="#ba1a1a" style={styles.rowIcon} />
+        <MaterialIcons name="exit-to-app" size={24} color="#ed0f0fff" style={styles.rowIcon} />
         <Text style={styles.logoutText}>Cerrar Sesión</Text>
       </TouchableOpacity>
 
@@ -558,6 +554,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#bccac1",
   },
+  avatarPlaceholder: {
+    backgroundColor: "#ebefed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatar: {
     width: "100%",
     height: "100%",
@@ -651,7 +652,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#ba1a1a",
+    color: "#ed0f0fff",
     marginLeft: 16,
   },
   loadingOverlay: {

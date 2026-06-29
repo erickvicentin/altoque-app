@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   View,
   Alert,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import api from "../services/api";
 
 export default function LoginScreen({ navigation }: any) {
