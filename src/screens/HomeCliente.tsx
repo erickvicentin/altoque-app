@@ -60,9 +60,7 @@ export default function HomeCliente({ route, navigation }: any) {
       
       {/* TopAppBar */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton}>
-          <Feather name="menu" size={24} color="#3d4943" />
-        </TouchableOpacity>
+        <View style={styles.headerSpacer} />
         <Text style={[styles.logo, { color: '#008560' }]}>alToque</Text>
         <TouchableOpacity style={styles.headerButton}>
           <View>

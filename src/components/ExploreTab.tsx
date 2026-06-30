@@ -52,18 +52,19 @@ export default function ExploreTab() {
         {/* Category 3 */}
         <TouchableOpacity style={styles.categoryCard}>
           <View style={[styles.iconCircle, { backgroundColor: '#fee2e2' }]}>
-            <MaterialIcons name="medical-services" size={24} color="#b91c1c" />
+            <Feather name="activity" size={24} color="#b91c1c" />
           </View>
-          <Text style={styles.categoryTitle}>Salud</Text>
-          <Text style={styles.categorySubtitle}>Bienestar general</Text>
+          <Text style={styles.categoryTitle}>Pilates</Text>
+          <Text style={styles.categorySubtitle}>Salud & Fitness</Text>
         </TouchableOpacity>
 
         {/* Category 4 */}
         <TouchableOpacity style={styles.categoryCard}>
-          <View style={[styles.iconCircle, { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e6e9e7' }]}>
-            <Feather name="arrow-right" size={24} color="#3d4943" />
+          <View style={[styles.iconCircle, { backgroundColor: '#e2e8f0' }]}>
+            <Feather name="tool" size={24} color="#475569" />
           </View>
-          <Text style={styles.categoryTitle}>Más servicios</Text>
+          <Text style={styles.categoryTitle}>Carpintería</Text>
+          <Text style={styles.categorySubtitle}>Muebles & Madera</Text>
         </TouchableOpacity>
 
       </View>
@@ -94,18 +95,6 @@ export default function ExploreTab() {
         <Text style={styles.moreAppointmentsText}>Ver más turnos</Text>
       </TouchableOpacity>
 
-      {/* Banner */}
-      <View style={styles.bannerContainer}>
-        <View style={styles.bannerContent}>
-          <Text style={styles.bannerTitle}>Cuidado alToque</Text>
-          <Text style={styles.bannerSubtitle}>Descuentos en estética los martes.</Text>
-          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-            <Text style={styles.bannerLink}>Conocer más</Text>
-            <Feather name="arrow-right" size={16} color="#008560" style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-        </View>
-      </View>
-      
       {/* Extra space for scroll */}
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -258,35 +247,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   moreAppointmentsText: {
-    color: '#008560',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  bannerContainer: {
-    backgroundColor: '#b5c5bd', // Fallback color
-    borderRadius: 12,
-    overflow: 'hidden',
-    height: 140,
-    justifyContent: 'center',
-  },
-  bannerContent: {
-    padding: 20,
-    backgroundColor: 'rgba(255,255,255,0.4)', // Overlay to make text readable if there was an image
-    flex: 1,
-    justifyContent: 'center',
-  },
-  bannerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#181c1c',
-    marginBottom: 4,
-  },
-  bannerSubtitle: {
-    fontSize: 14,
-    color: '#3d4943',
-    maxWidth: '70%',
-  },
-  bannerLink: {
     color: '#008560',
     fontWeight: 'bold',
     fontSize: 14,
