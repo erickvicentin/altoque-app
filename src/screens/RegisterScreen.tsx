@@ -8,13 +8,13 @@ import {
   ScrollView,
   Switch,
   Alert,
-  SafeAreaView,
   StatusBar,
   Modal,
   FlatList,
   Platform,
   Animated,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import api from "../services/api";

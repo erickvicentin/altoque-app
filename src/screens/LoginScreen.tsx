@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   View,
   Alert,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import api from "../services/api";
 
 export default function LoginScreen({ navigation }: any) {
@@ -25,14 +25,19 @@ export default function LoginScreen({ navigation }: any) {
     setLoading(true);
     try {
       const response = await api.post("/login", { email, password });
-      const { user } = response.data;
+      const { user, access_token } = response.data;
+
+      if (access_token) {
+        api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      }
 
       if (user.role === "client") {
-        navigation.replace("HomeCliente", { name: user.name });
+        navigation.replace("HomeCliente", { user });
       } else if (user.role === "professional") {
-        navigation.replace("HomeProfesional", { name: user.name });
+        navigation.replace("HomeProfesional", { user });
       }
     } catch (error: any) {
+      console.log(error);
       const errorMsg =
         error.response?.data?.message ||
         "Hubo un problema al conectar con el servidor";
@@ -55,13 +60,13 @@ export default function LoginScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F7F6" />
-      
+
       <View style={styles.header}>
       </View>
 
       <View style={styles.content}>
-              <Text style={styles.logo}>alToque</Text>
-              <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+        <Text style={styles.logo}>alToque</Text>
+        <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
 
         <View style={styles.card}>
           <View style={styles.inputContainer}>
@@ -234,7 +239,7 @@ const styles = StyleSheet.create({
   signUpText: {
     color: "#056750",
     fontWeight: "bold",
-    },
+  },
   subtitle: {
     fontSize: 16,
     color: "#5D6B68",

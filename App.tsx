@@ -6,6 +6,9 @@ import LoginScreen from "./src/screens/LoginScreen";
 import HomeCliente from "./src/screens/HomeCliente";
 import HomeProfesional from "./src/screens/HomeProfesional";
 import RegisterScreen from './src/screens/RegisterScreen';
+import ProfessionalAddressScreen from "./src/screens/ProfessionalAddressScreen";
+import ClientAddressScreen from "./src/screens/ClientAddressScreen";
+import EditPhoneScreen from "./src/screens/EditPhoneScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +23,9 @@ export default function App() {
         <Stack.Screen name="HomeCliente" component={HomeCliente} />
         <Stack.Screen name="HomeProfesional" component={HomeProfesional} />
         <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ProfessionalAddress" component={ProfessionalAddressScreen} />
+        <Stack.Screen name="ClientAddress" component={ClientAddressScreen} />
+        <Stack.Screen name="EditPhone" component={EditPhoneScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
