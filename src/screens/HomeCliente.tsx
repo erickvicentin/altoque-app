@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Feather } from "@expo/vector-icons";
 import ProfileScreen from "./ProfileScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
+import ExploreTab from "../components/ExploreTab";
 
 export default function HomeCliente({ route, navigation }: any) {
   const { user: initialUser } = route.params || {};
@@ -27,16 +28,7 @@ export default function HomeCliente({ route, navigation }: any) {
   const renderContent = () => {
     switch (activeTab) {
       case "explorar":
-        return (
-          <View style={styles.tabContent}>
-            <View style={styles.welcomeCard}>
-              <Text style={styles.welcomeText}>¡Hola cliente, {user.name}!</Text>
-              <Text style={styles.subtitle}>
-                Pronto verás el listado de profesionales acá al toque.
-              </Text>
-            </View>
-          </View>
-        );
+        return <ExploreTab />;
       case "turnos":
         return (
           <View style={styles.tabContent}>
@@ -68,7 +60,16 @@ export default function HomeCliente({ route, navigation }: any) {
       
       {/* TopAppBar */}
       <View style={styles.header}>
-        <Text style={styles.logo}>alToque</Text>
+        <TouchableOpacity style={styles.headerButton}>
+          <Feather name="menu" size={24} color="#3d4943" />
+        </TouchableOpacity>
+        <Text style={[styles.logo, { color: '#008560' }]}>alToque</Text>
+        <TouchableOpacity style={styles.headerButton}>
+          <View>
+            <Feather name="bell" size={24} color="#3d4943" />
+            <View style={styles.notificationDot} />
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Main Content Area */}
@@ -114,6 +115,15 @@ const styles = StyleSheet.create({
     color: "#181c1c",
     textAlign: "center",
     flex: 1,
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#e11d48',
   },
   headerSpacer: {
     width: 40,
