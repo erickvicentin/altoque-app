@@ -8,32 +8,36 @@ export default function SearchResultsScreen() {
   const route = useRoute<any>();
   const category = route.params?.category || 'Búsqueda';
 
-  const results = [
-    {
-      id: '1',
-      name: 'Fran Perez',
-      rating: 4.9,
-      reviews: 15,
-      isTop: true,
-      image: 'https://i.pravatar.cc/150?img=11', // Placeholder image
-    },
-    {
-      id: '2',
-      name: 'Barbershop',
-      rating: 3.7,
-      reviews: 12,
-      isTop: false,
-      isShop: true,
-    },
-    {
-      id: '3',
-      name: 'Robert Draw',
-      rating: 5.0,
-      reviews: 4,
-      isTop: false,
-      image: 'https://i.pravatar.cc/150?img=14', // Placeholder image
-    },
-  ];
+  const getResultsByCategory = (cat: string) => {
+    switch (cat) {
+      case 'Electricidad':
+        return [
+          { id: '1', name: 'Carlos Gomez', rating: 4.8, reviews: 22, isTop: true, image: 'https://i.pravatar.cc/150?img=33' },
+          { id: '2', name: 'ElectroHogar', rating: 4.1, reviews: 8, isTop: false, isShop: true },
+          { id: '3', name: 'Luis Martinez', rating: 4.5, reviews: 14, isTop: false, image: 'https://i.pravatar.cc/150?img=59' },
+        ];
+      case 'Pilates':
+        return [
+          { id: '1', name: 'Ana Silva', rating: 5.0, reviews: 30, isTop: true, image: 'https://i.pravatar.cc/150?img=5' },
+          { id: '2', name: 'Estudio Zen', rating: 4.6, reviews: 18, isTop: false, isShop: true },
+        ];
+      case 'Carpintería':
+        return [
+          { id: '1', name: 'Muebles López', rating: 4.7, reviews: 45, isTop: true, isShop: true },
+          { id: '2', name: 'Mario Rojas', rating: 4.2, reviews: 7, isTop: false, image: 'https://i.pravatar.cc/150?img=15' },
+          { id: '3', name: 'Diego Torres', rating: 4.9, reviews: 25, isTop: false, image: 'https://i.pravatar.cc/150?img=60' },
+        ];
+      case 'Barbería':
+      default:
+        return [
+          { id: '1', name: 'Fran Perez', rating: 4.9, reviews: 15, isTop: true, image: 'https://i.pravatar.cc/150?img=11' },
+          { id: '2', name: 'Barbershop', rating: 3.7, reviews: 12, isTop: false, isShop: true },
+          { id: '3', name: 'Robert Draw', rating: 5.0, reviews: 4, isTop: false, image: 'https://i.pravatar.cc/150?img=14' },
+        ];
+    }
+  };
+
+  const results = getResultsByCategory(category);
 
   return (
     <SafeAreaView style={styles.safeArea}>

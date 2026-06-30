@@ -7,7 +7,11 @@ export default function ExploreTab() {
   const navigation = useNavigation<any>();
 
   const handleSearch = () => {
-    navigation.navigate('SearchResults', { category: 'Barbería' });
+    navigation.navigate('SearchResults', { category: 'Búsqueda' });
+  };
+
+  const handleCategoryPress = (categoryName: string) => {
+    navigation.navigate('SearchResults', { category: categoryName });
   };
 
   return (
@@ -32,7 +36,7 @@ export default function ExploreTab() {
       <View style={styles.categoriesGrid}>
         
         {/* Category 1 */}
-        <TouchableOpacity style={styles.categoryCard} onPress={handleSearch}>
+        <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress('Barbería')}>
           <View style={[styles.iconCircle, { backgroundColor: '#c2f0d9' }]}>
             <Feather name="scissors" size={24} color="#008560" />
           </View>
@@ -41,7 +45,7 @@ export default function ExploreTab() {
         </TouchableOpacity>
 
         {/* Category 2 */}
-        <TouchableOpacity style={styles.categoryCard}>
+        <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress('Electricidad')}>
           <View style={[styles.iconCircle, { backgroundColor: '#e6e9e7' }]}>
             <Feather name="zap" size={24} color="#3d4943" />
           </View>
@@ -50,7 +54,7 @@ export default function ExploreTab() {
         </TouchableOpacity>
 
         {/* Category 3 */}
-        <TouchableOpacity style={styles.categoryCard}>
+        <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress('Pilates')}>
           <View style={[styles.iconCircle, { backgroundColor: '#fee2e2' }]}>
             <Feather name="activity" size={24} color="#b91c1c" />
           </View>
@@ -59,7 +63,7 @@ export default function ExploreTab() {
         </TouchableOpacity>
 
         {/* Category 4 */}
-        <TouchableOpacity style={styles.categoryCard}>
+        <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress('Carpintería')}>
           <View style={[styles.iconCircle, { backgroundColor: '#e2e8f0' }]}>
             <Feather name="tool" size={24} color="#475569" />
           </View>
