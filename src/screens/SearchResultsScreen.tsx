@@ -65,7 +65,15 @@ export default function SearchResultsScreen() {
 
         {/* Results List */}
         {results.map((item) => (
-          <TouchableOpacity key={item.id} style={styles.resultCard}>
+          <TouchableOpacity
+            key={item.id}
+            style={styles.resultCard}
+            onPress={() =>
+              navigation.navigate("ProfessionalProfile", {
+                professional: { ...item, category },
+              })
+            }
+          >
             <View style={styles.cardContent}>
               
               {/* Image/Icon */}
