@@ -148,7 +148,7 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
   const formatPrice = (price: number | string) => {
     const numericPrice = typeof price === "string" ? parseFloat(price) : price;
     if (isNaN(numericPrice)) return "$0";
-    
+
     // Formato manual con punto de miles para Español (Argentina)
     const roundedPrice = Math.round(numericPrice);
     return `$${roundedPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
@@ -280,7 +280,7 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
         close_time_2: slotClose2,
       },
     }));
-    
+
     setActiveView("days");
   };
 
@@ -310,7 +310,7 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
     const [h, m] = time.split(":").map(Number);
     const newH = increment ? (h + 1) % 24 : (h - 1 + 24) % 24;
     const formatted = `${String(newH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-    
+
     if (isSlot1) {
       if (isOpen) setSlotOpen1(formatted);
       else setSlotClose1(formatted);
@@ -324,7 +324,7 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
     const [h, m] = time.split(":").map(Number);
     const newM = increment ? (m + 5) % 60 : (m - 5 + 60) % 60;
     const formatted = `${String(h).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
-    
+
     if (isSlot1) {
       if (isOpen) setSlotOpen1(formatted);
       else setSlotClose1(formatted);
@@ -341,10 +341,10 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
     };
 
     const startA = toMinutes(slotOpen1);
-    const endA = toMinutes(slotClose1) <= startA 
-      ? toMinutes(slotClose1) + 24 * 60 
+    const endA = toMinutes(slotClose1) <= startA
+      ? toMinutes(slotClose1) + 24 * 60
       : toMinutes(slotClose1);
-    
+
     // Check duration 1
     if (endA - startA < 5) {
       Alert.alert("Horario Inválido", "La duración del primer rango debe ser de al menos 5 minutos.");
@@ -353,8 +353,8 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
 
     if (slotHasSecond) {
       const startB = toMinutes(slotOpen2);
-      const endB = toMinutes(slotClose2) <= startB 
-        ? toMinutes(slotClose2) + 24 * 60 
+      const endB = toMinutes(slotClose2) <= startB
+        ? toMinutes(slotClose2) + 24 * 60
         : toMinutes(slotClose2);
 
       // Check duration 2
@@ -560,20 +560,20 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
                       <MaterialIcons name="label" size={16} color="#00694c" style={{ marginRight: 6 }} />
                       <Text style={styles.serviceNameText}>{service.name}</Text>
                     </View>
-                    
+
                     {/* Line 2: Duración */}
                     <View style={[styles.serviceDetailRow, { marginTop: 4 }]}>
                       <MaterialIcons name="access-time" size={16} color="#6d7a73" style={{ marginRight: 6 }} />
                       <Text style={styles.serviceDetailText}>Duración: {formatDuration(service.duration_minutes)}</Text>
                     </View>
-                    
+
                     {/* Line 3: Tarifa */}
                     <View style={[styles.serviceDetailRow, { marginTop: 4 }]}>
                       <MaterialIcons name="attach-money" size={16} color="#6d7a73" style={{ marginRight: 6 }} />
                       <Text style={styles.serviceDetailText}>Tarifa: {formatPrice(service.price)}</Text>
                     </View>
                   </View>
-                  
+
                   {/* Custom Toggle Switch */}
                   <TouchableOpacity
                     style={[

@@ -200,8 +200,6 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Mi Perfil</Text>
-
       {/* Avatar Section */}
       <View style={styles.avatarSection}>
         <View style={[styles.avatarWrapper, styles.avatarPlaceholder]}>
