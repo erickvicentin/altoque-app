@@ -10,10 +10,12 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import api from "../services/api";
 
 interface ProfileScreenProps {
@@ -25,6 +27,115 @@ interface ProfileScreenProps {
 export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileScreenProps) {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      Alert.alert(
+        "Permiso requerido",
+        "Se necesitan permisos de acceso a la galería para cambiar la foto de perfil."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selectedImage = result.assets[0];
+    await uploadAvatar(selectedImage.uri);
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      const uriParts = uri.split('/');
+      const fileName = uriParts[uriParts.length - 1];
+
+      formData.append("avatar", {
+        uri: Platform.OS === "ios" ? uri.replace("file://", "") : uri,
+        name: fileName || "avatar.jpg",
+        type: "image/jpeg",
+      } as any);
+
+      const response = await api.post("/profile/avatar", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      onUpdateUser(response.data.user);
+      Alert.alert("Éxito", "Foto de perfil actualizada con éxito.");
+    } catch (error: any) {
+      console.log("Error uploading avatar:", error);
+      const errorMsg = error.response?.data?.message || "No se pudo subir la foto de perfil.";
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAvatarPress = () => {
+    if (user.avatar_url) {
+      Alert.alert(
+        "Foto de perfil",
+        "¿Qué deseas hacer con tu foto de perfil?",
+        [
+          {
+            text: "Elegir de la galería",
+            onPress: handlePickImage,
+          },
+          {
+            text: "Eliminar foto",
+            onPress: confirmDeleteAvatar,
+            style: "destructive",
+          },
+          {
+            text: "Cancelar",
+            style: "cancel",
+          },
+        ]
+      );
+    } else {
+      handlePickImage();
+    }
+  };
+
+  const confirmDeleteAvatar = () => {
+    Alert.alert(
+      "Eliminar foto",
+      "¿Estás seguro de que querés eliminar tu foto de perfil?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Eliminar", style: "destructive", onPress: deleteAvatar },
+      ]
+    );
+  };
+
+  const deleteAvatar = async () => {
+    setUploading(true);
+    try {
+      const response = await api.delete("/profile/avatar");
+      onUpdateUser(response.data.user);
+      Alert.alert("Éxito", "Foto de perfil eliminada correctamente.");
+    } catch (error: any) {
+      console.log("Error deleting avatar:", error);
+      const errorMsg = error.response?.data?.message || "No se pudo eliminar la foto de perfil.";
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Modales
   const [personalDataModalVisible, setPersonalDataModalVisible] = useState(false);
@@ -202,10 +313,30 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
       {/* Avatar Section */}
       <View style={styles.avatarSection}>
-        <View style={[styles.avatarWrapper, styles.avatarPlaceholder]}>
-          <MaterialIcons name="person" size={80} color="#00694c" />
-        </View>
-        <TouchableOpacity style={styles.uploadBadge} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.avatarWrapper}
+          onPress={handleAvatarPress}
+          activeOpacity={0.8}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <View style={[styles.avatarWrapper, styles.avatarPlaceholder, { borderWidth: 0 }]}>
+              <ActivityIndicator size="large" color="#00694c" />
+            </View>
+          ) : user.avatar_url ? (
+            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatarWrapper, styles.avatarPlaceholder, { borderWidth: 0 }]}>
+              <MaterialIcons name="person" size={80} color="#00694c" />
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.uploadBadge}
+          onPress={handleAvatarPress}
+          activeOpacity={0.7}
+          disabled={uploading}
+        >
           <MaterialIcons name="arrow-upward" size={18} color="#00694c" />
         </TouchableOpacity>
       </View>
