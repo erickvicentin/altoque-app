@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform } 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import ProfileScreen from "./ProfileScreen";
+import ServicesScreen from "./ServicesScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
 
 export default function HomeProfesional({ route, navigation }: any) {
@@ -39,15 +40,11 @@ export default function HomeProfesional({ route, navigation }: any) {
         );
       case "servicios":
         return (
-          <View style={styles.tabContent}>
-            <View style={styles.placeholderCard}>
-              <MaterialIcons name="storefront" size={64} color="#008560" style={styles.placeholderIcon} />
-              <Text style={styles.placeholderTitle}>Servicios</Text>
-              <Text style={styles.placeholderSubtitle}>
-                Acá vas a poder configurar y gestionar los servicios que ofreces al público.
-              </Text>
-            </View>
-          </View>
+          <ServicesScreen
+            user={user}
+            navigation={navigation}
+            setActiveTab={setActiveTab}
+          />
         );
       case "perfil":
         return (
@@ -67,9 +64,23 @@ export default function HomeProfesional({ route, navigation }: any) {
       <StatusBar barStyle="dark-content" backgroundColor="#f7faf8" />
       
       {/* TopAppBar */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>alToque</Text>
-      </View>
+      {activeTab === "servicios" ? (
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.headerButton} 
+            onPress={() => setActiveTab("negocio")}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#00694c" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Servicios</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      ) : (
+        <View style={styles.header}>
+          <Text style={styles.logo}>alToque</Text>
+        </View>
+      )}
 
       {/* Main Content Area */}
       <View style={styles.mainContent}>
@@ -117,6 +128,14 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#181c1c",
+    textAlign: "center",
+    flex: 1,
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   },
   mainContent: {
     flex: 1,
