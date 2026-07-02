@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   Platform,
+  TextInput,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../services/api";
@@ -37,6 +38,16 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
   const [daysModalVisible, setDaysModalVisible] = useState(false);
   const [selectedDaysObj, setSelectedDaysObj] = useState<Record<string, any>>({});
   const [savingDays, setSavingDays] = useState(false);
+
+  // States para el modal de Gestión de Servicios (CRUD)
+  const [serviceModalVisible, setServiceModalVisible] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [serviceName, setServiceName] = useState("");
+  const [servicePrice, setServicePrice] = useState("");
+  const [serviceDuration, setServiceDuration] = useState(60); // 60 mins por defecto
+  const [serviceIsActive, setServiceIsActive] = useState(true);
+  const [savingService, setSavingService] = useState(false);
+  const [deletingService, setDeletingService] = useState(false);
 
   // View activa dentro del modal ("days" | "slots")
   const [activeView, setActiveView] = useState<"days" | "slots">("days");
@@ -366,13 +377,138 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
   };
 
   const handleAddService = () => {
-    Alert.alert("Nuevo servicio", "La pantalla de creación de nuevos servicios estará disponible próximamente.");
+    setEditingService(null);
+    setServiceName("");
+    setServicePrice("");
+    setServiceDuration(60); // 1 hora por defecto
+    setServiceIsActive(true);
+    setServiceModalVisible(true);
   };
 
   const handleEditService = (service: Service) => {
+    setEditingService(service);
+    setServiceName(service.name);
+    // Limpiar tarifa a string de dígitos para el input
+    const cleanPrice = Math.round(Number(service.price)).toString();
+    setServicePrice(cleanPrice);
+    setServiceDuration(Number(service.duration_minutes));
+    setServiceIsActive(!!service.is_active);
+    setServiceModalVisible(true);
+  };
+
+  const handlePriceInputChange = (val: string) => {
+    const raw = val.replace(/[^0-9]/g, "");
+    setServicePrice(raw);
+  };
+
+  const formatPriceInput = (val: string) => {
+    if (!val) return "";
+    return `$ ${val.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+  };
+
+  const adjustServiceDurationHours = (increment: boolean) => {
+    const hh = Math.floor(serviceDuration / 60);
+    const mm = serviceDuration % 60;
+    let newH = increment ? hh + 1 : hh - 1;
+    if (newH < 0) newH = 0;
+    if (newH > 24) newH = 24;
+    const newTotal = newH * 60 + mm;
+    setServiceDuration(newTotal < 5 ? 5 : newTotal);
+  };
+
+  const adjustServiceDurationMinutes = (increment: boolean) => {
+    const hh = Math.floor(serviceDuration / 60);
+    const mm = serviceDuration % 60;
+    let newM = increment ? mm + 5 : mm - 5;
+    let newH = hh;
+    if (newM >= 60) {
+      newM = 0;
+      newH += 1;
+    } else if (newM < 0) {
+      newM = 55;
+      newH -= 1;
+    }
+    if (newH < 0) {
+      newH = 0;
+      newM = 0;
+    }
+    if (newH > 24) {
+      newH = 24;
+      newM = 0;
+    }
+    const newTotal = newH * 60 + newM;
+    setServiceDuration(newTotal < 5 ? 5 : newTotal);
+  };
+
+  const handleSaveService = async () => {
+    if (!serviceName.trim()) {
+      Alert.alert("Error", "Por favor, ingresa el título del servicio.");
+      return;
+    }
+    if (!servicePrice.trim() || Number(servicePrice) <= 0) {
+      Alert.alert("Error", "Por favor, ingresa una tarifa válida.");
+      return;
+    }
+    if (serviceDuration < 5) {
+      Alert.alert("Error", "La duración del servicio debe ser de al menos 5 minutos.");
+      return;
+    }
+
+    setSavingService(true);
+    try {
+      const payload = {
+        name: serviceName,
+        price: Number(servicePrice),
+        duration_minutes: serviceDuration,
+        is_active: serviceIsActive,
+      };
+
+      if (editingService) {
+        await api.put(`/services/${editingService.id}`, payload);
+        Alert.alert("Éxito", "Servicio actualizado con éxito.");
+      } else {
+        await api.post("/services", payload);
+        Alert.alert("Éxito", "Servicio creado con éxito.");
+      }
+
+      setServiceModalVisible(false);
+      fetchServices();
+    } catch (error: any) {
+      console.log("Error saving service:", error);
+      const errorMsg = error.response?.data?.message || "No se pudo guardar el servicio.";
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setSavingService(false);
+    }
+  };
+
+  const handleDeleteService = () => {
+    if (!editingService) return;
+
     Alert.alert(
-      "Editar servicio",
-      `Presionaste: ${service.name}. La pantalla de edición del servicio estará disponible próximamente.`
+      "Confirmación",
+      `¿Estás seguro de que quieres borrar el servicio "${editingService.name}"? Esta acción no se puede deshacer.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Borrar",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingService(true);
+            try {
+              await api.delete(`/services/${editingService.id}`);
+              Alert.alert("Éxito", "Servicio eliminado con éxito.");
+              setServiceModalVisible(false);
+              fetchServices();
+            } catch (error: any) {
+              console.log("Error deleting service:", error);
+              Alert.alert("Error", "No se pudo eliminar el servicio.");
+            } finally {
+              setDeletingService(false);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -403,7 +539,12 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
           {loading ? (
             <ActivityIndicator size="large" color="#00694c" style={{ marginTop: 24 }} />
           ) : services.length === 0 ? (
-            <Text style={styles.emptyText}>No tienes servicios creados.</Text>
+            <View style={styles.emptyStateContainer}>
+              <MaterialIcons name="design-services" size={80} color="#bccac1" style={{ marginBottom: 16 }} />
+              <Text style={styles.emptyStateText}>
+                No tenés servicios cargados.{"\n"}¡Creá uno y empezá a ofrecerlos!
+              </Text>
+            </View>
           ) : (
             <View style={styles.servicesList}>
               {services.map((service) => (
@@ -413,9 +554,25 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
                   onPress={() => handleEditService(service)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.serviceInfo} numberOfLines={1}>
-                    {service.name} | {formatDuration(service.duration_minutes)} | {formatPrice(service.price)}
-                  </Text>
+                  <View style={styles.serviceDetailsContainer}>
+                    {/* Line 1: Nombre */}
+                    <View style={styles.serviceDetailRow}>
+                      <MaterialIcons name="label" size={16} color="#00694c" style={{ marginRight: 6 }} />
+                      <Text style={styles.serviceNameText}>{service.name}</Text>
+                    </View>
+                    
+                    {/* Line 2: Duración */}
+                    <View style={[styles.serviceDetailRow, { marginTop: 4 }]}>
+                      <MaterialIcons name="access-time" size={16} color="#6d7a73" style={{ marginRight: 6 }} />
+                      <Text style={styles.serviceDetailText}>Duración: {formatDuration(service.duration_minutes)}</Text>
+                    </View>
+                    
+                    {/* Line 3: Tarifa */}
+                    <View style={[styles.serviceDetailRow, { marginTop: 4 }]}>
+                      <MaterialIcons name="attach-money" size={16} color="#6d7a73" style={{ marginRight: 6 }} />
+                      <Text style={styles.serviceDetailText}>Tarifa: {formatPrice(service.price)}</Text>
+                    </View>
+                  </View>
                   
                   {/* Custom Toggle Switch */}
                   <TouchableOpacity
@@ -782,6 +939,174 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
           )}
         </View>
       </Modal>
+
+      {/* Modal: Gestión de Servicios (Crear/Editar/Borrar) */}
+      <Modal
+        visible={serviceModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setServiceModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { borderRadius: 20, padding: 24, maxHeight: "90%" }]}>
+            {/* Modal Header */}
+            <View style={[styles.modalSlotsHeader, { borderBottomWidth: 0, height: 40 }]}>
+              <TouchableOpacity
+                style={styles.modalSlotsBackButton}
+                onPress={() => setServiceModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="arrow-back" size={24} color="#00694c" />
+              </TouchableOpacity>
+              <Text style={styles.modalSlotsTitle}>
+                {editingService ? "Editar servicio" : "Crear servicio"}
+              </Text>
+              <View style={{ width: 40 }} />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 24 }} contentContainerStyle={{ gap: 20 }}>
+              {/* Título del servicio */}
+              <View style={styles.fieldCol}>
+                <Text style={styles.timeLabel}>Título del servicio</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.textInput}
+                    value={serviceName}
+                    onChangeText={(val) => {
+                      if (val.length <= 20) setServiceName(val);
+                    }}
+                    placeholder="Ej. Corte y Barba"
+                    placeholderTextColor="#6d7a73"
+                  />
+                  <Text style={styles.charCounter}>{serviceName.length}/20</Text>
+                </View>
+              </View>
+
+              {/* Tarifa del servicio */}
+              <View style={styles.fieldCol}>
+                <Text style={styles.timeLabel}>Tarifa del servicio</Text>
+                <TextInput
+                  style={styles.textInputFull}
+                  value={formatPriceInput(servicePrice)}
+                  onChangeText={handlePriceInputChange}
+                  placeholder="$ 0"
+                  placeholderTextColor="#6d7a73"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Tiempo de bloqueo */}
+              <View style={styles.timeInputColCentered}>
+                <Text style={styles.timeLabelCentered}>Tiempo de bloqueo</Text>
+                <View style={styles.timeAdjustmentBoxCentered}>
+                  <TouchableOpacity
+                    style={styles.adjustBtn}
+                    onPress={() => adjustServiceDurationHours(false)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="remove" size={16} color="#00694c" />
+                  </TouchableOpacity>
+                  <Text style={styles.timeNumberText}>
+                    {String(Math.floor(serviceDuration / 60)).padStart(2, "0")}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.adjustBtn}
+                    onPress={() => adjustServiceDurationHours(true)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="add" size={16} color="#00694c" />
+                  </TouchableOpacity>
+
+                  <Text style={styles.colonText}>:</Text>
+
+                  <TouchableOpacity
+                    style={styles.adjustBtn}
+                    onPress={() => adjustServiceDurationMinutes(false)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="remove" size={16} color="#00694c" />
+                  </TouchableOpacity>
+                  <Text style={styles.timeNumberText}>
+                    {String(serviceDuration % 60).padStart(2, "0")}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.adjustBtn}
+                    onPress={() => adjustServiceDurationMinutes(true)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="add" size={16} color="#00694c" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Servicio disponible Toggle */}
+              <View style={styles.secondRangeToggleRow}>
+                <Text style={styles.secondRangeLabel}>Servicio disponible</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.smallSwitchContainer,
+                    serviceIsActive ? styles.switchActiveBg : styles.switchInactiveBg,
+                  ]}
+                  onPress={() => setServiceIsActive(!serviceIsActive)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.smallSwitchThumb,
+                      serviceIsActive ? styles.smallSwitchThumbActive : styles.smallSwitchThumbInactive,
+                    ]}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={[styles.modalFooterRow, { paddingHorizontal: 0, marginTop: 12 }]}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setServiceModalVisible(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: "#00694c" }]}
+                  onPress={handleSaveService}
+                  activeOpacity={0.8}
+                  disabled={savingService}
+                >
+                  {savingService ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.saveBtnText}>Guardar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Delete Button (only if editing) */}
+              {editingService && (
+                <View style={styles.deleteBtnRow}>
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={handleDeleteService}
+                    activeOpacity={0.8}
+                    disabled={deletingService}
+                  >
+                    {deletingService ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="delete" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                        <Text style={styles.deleteBtnText}>Borrar servicio</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -846,22 +1171,34 @@ const styles = StyleSheet.create({
   },
   serviceRow: {
     width: "100%",
-    height: 48,
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#bccac1",
-    borderRadius: 24,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  serviceInfo: {
-    fontSize: 13,
-    color: "#3d4943",
-    fontWeight: "400",
+  serviceDetailsContainer: {
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
+  },
+  serviceDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  serviceNameText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#181c1c",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  serviceDetailText: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#3d4943",
     fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   },
   toggleContainer: {
@@ -888,12 +1225,19 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  emptyText: {
-    fontSize: 14,
-    color: "#3d4943",
+  emptyStateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+    width: "100%",
+  },
+  emptyStateText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#6d7a73",
     textAlign: "center",
-    marginTop: 24,
-    fontStyle: "italic",
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   },
   floatingButtonContainer: {
     position: "absolute",
@@ -1210,6 +1554,68 @@ const styles = StyleSheet.create({
   },
   replicateBtnText: {
     color: "#00694c",
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  // Service Modal Specific Styles
+  fieldCol: {
+    flexDirection: "column",
+    width: "100%",
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    borderWidth: 1.5,
+    borderColor: "#bccac1",
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#181c1c",
+    padding: 0, // Reset default Android paddings
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  charCounter: {
+    fontSize: 11,
+    color: "#6d7a73",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  textInputFull: {
+    width: "100%",
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: "#bccac1",
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#181c1c",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  deleteBtnRow: {
+    width: "100%",
+    borderTopWidth: 1,
+    borderTopColor: "#e0e3e1",
+    paddingTop: 16,
+    marginTop: 4,
+  },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ba1a1a",
+    borderRadius: 12,
+    height: 48,
+    width: "100%",
+  },
+  deleteBtnText: {
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
