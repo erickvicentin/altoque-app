@@ -35,10 +35,52 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
 
   // States para el modal de Días de Atención
   const [daysModalVisible, setDaysModalVisible] = useState(false);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [selectedDaysObj, setSelectedDaysObj] = useState<Record<string, any>>({});
   const [savingDays, setSavingDays] = useState(false);
 
+  // View activa dentro del modal ("days" | "slots")
+  const [activeView, setActiveView] = useState<"days" | "slots">("days");
+  const [editingDay, setEditingDay] = useState("");
+  const [slotOpen1, setSlotOpen1] = useState("08:00");
+  const [slotClose1, setSlotClose1] = useState("12:00");
+  const [slotHasSecond, setSlotHasSecond] = useState(false);
+  const [slotOpen2, setSlotOpen2] = useState("15:30");
+  const [slotClose2, setSlotClose2] = useState("21:00");
+
   const ALL_WEEKDAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+  const initSelectedDaysObj = (daysData: any) => {
+    const initialObj: Record<string, any> = {};
+    ALL_WEEKDAYS.forEach(day => {
+      let isActive = false;
+      let open_time_1 = "08:00";
+      let close_time_1 = "12:00";
+      let has_second_range = false;
+      let open_time_2 = "15:30";
+      let close_time_2 = "21:00";
+
+      if (Array.isArray(daysData)) {
+        isActive = daysData.includes(day);
+      } else if (typeof daysData === "object" && daysData !== null) {
+        isActive = !!daysData[day]?.is_active;
+        open_time_1 = daysData[day]?.open_time_1 || "08:00";
+        close_time_1 = daysData[day]?.close_time_1 || "12:00";
+        has_second_range = !!daysData[day]?.has_second_range;
+        open_time_2 = daysData[day]?.open_time_2 || "15:30";
+        close_time_2 = daysData[day]?.close_time_2 || "21:00";
+      }
+
+      initialObj[day] = {
+        is_active: isActive,
+        open_time_1,
+        close_time_1,
+        has_second_range,
+        open_time_2,
+        close_time_2
+      };
+    });
+    return initialObj;
+  };
 
   // Cargar servicios al montar
   useEffect(() => {
@@ -103,13 +145,24 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
 
   // Formateador de días de atención
   const formatWorkingDays = () => {
-    const days = user.professional_profile?.working_days || [];
-    if (!days || days.length === 0) {
+    const days = user.professional_profile?.working_days;
+    if (!days) {
+      return "Sin días de atención configurados";
+    }
+
+    let activeDaysList: string[] = [];
+    if (Array.isArray(days)) {
+      activeDaysList = days;
+    } else if (typeof days === "object" && days !== null) {
+      activeDaysList = Object.keys(days).filter((day) => days[day]?.is_active);
+    }
+
+    if (activeDaysList.length === 0) {
       return "Sin días de atención configurados";
     }
 
     // 1. Filtrar y ordenar cronológicamente de Lunes a Domingo
-    const sortedDays = days
+    const sortedDays = activeDaysList
       .filter((d: string) => ALL_WEEKDAYS.includes(d))
       .sort((a: string, b: string) => ALL_WEEKDAYS.indexOf(a) - ALL_WEEKDAYS.indexOf(b));
 
@@ -150,30 +203,36 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
       const response = await api.get("/profile");
       const freshUser = response.data.user;
       onUpdateUser(freshUser);
-      setSelectedDays(freshUser.professional_profile?.working_days || []);
+      setSelectedDaysObj(initSelectedDaysObj(freshUser.professional_profile?.working_days));
+      setActiveView("days");
       setDaysModalVisible(true);
     } catch (error) {
       console.log("Error fetching profile working days:", error);
       // Fallback al estado local si la API falla
-      setSelectedDays(user.professional_profile?.working_days || []);
+      setSelectedDaysObj(initSelectedDaysObj(user.professional_profile?.working_days));
+      setActiveView("days");
       setDaysModalVisible(true);
     }
   };
 
   const toggleDay = (day: string) => {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
+    setSelectedDaysObj((prev) => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        is_active: !prev[day]?.is_active,
+      },
+    }));
   };
 
   const saveDays = async () => {
     setSavingDays(true);
     try {
       const response = await api.put("/profile", {
-        working_days: selectedDays,
+        working_days: selectedDaysObj,
       });
       onUpdateUser(response.data.user);
-      Alert.alert("Éxito", "Días de atención actualizados con éxito.");
+      Alert.alert("Éxito", "Días de atención y horarios actualizados con éxito.");
       setDaysModalVisible(false);
     } catch (error: any) {
       console.log("Error saving working days:", error);
@@ -184,10 +243,126 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
   };
 
   const handleEditSlots = (day: string) => {
-    Alert.alert(
-      "Editar slots",
-      `Edición de slots para el día ${day} estará disponible próximamente.`
-    );
+    const daySchedule = selectedDaysObj[day] || {};
+    setEditingDay(day);
+    setSlotOpen1(daySchedule.open_time_1 || "08:00");
+    setSlotClose1(daySchedule.close_time_1 || "12:00");
+    setSlotHasSecond(!!daySchedule.has_second_range);
+    setSlotOpen2(daySchedule.open_time_2 || "15:30");
+    setSlotClose2(daySchedule.close_time_2 || "21:00");
+    setActiveView("slots");
+  };
+
+  const saveSlots = () => {
+    if (!validateSlotsLocally()) {
+      return;
+    }
+
+    setSelectedDaysObj((prev) => ({
+      ...prev,
+      [editingDay]: {
+        ...prev[editingDay],
+        open_time_1: slotOpen1,
+        close_time_1: slotClose1,
+        has_second_range: slotHasSecond,
+        open_time_2: slotOpen2,
+        close_time_2: slotClose2,
+      },
+    }));
+    
+    setActiveView("days");
+  };
+
+  const replicateSlotsToAllDays = () => {
+    if (!validateSlotsLocally()) {
+      return;
+    }
+
+    setSelectedDaysObj((prev) => {
+      const updated = { ...prev };
+      ALL_WEEKDAYS.forEach((day) => {
+        updated[day] = {
+          ...updated[day],
+          open_time_1: slotOpen1,
+          close_time_1: slotClose1,
+          has_second_range: slotHasSecond,
+          open_time_2: slotOpen2,
+          close_time_2: slotClose2,
+        };
+      });
+      return updated;
+    });
+    Alert.alert("Éxito", `Horario de ${editingDay} copiado a todos los demás días.`);
+  };
+
+  const adjustHour = (time: string, isSlot1: boolean, isOpen: boolean, increment: boolean) => {
+    const [h, m] = time.split(":").map(Number);
+    const newH = increment ? (h + 1) % 24 : (h - 1 + 24) % 24;
+    const formatted = `${String(newH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    
+    if (isSlot1) {
+      if (isOpen) setSlotOpen1(formatted);
+      else setSlotClose1(formatted);
+    } else {
+      if (isOpen) setSlotOpen2(formatted);
+      else setSlotClose2(formatted);
+    }
+  };
+
+  const adjustMinutes = (time: string, isSlot1: boolean, isOpen: boolean, increment: boolean) => {
+    const [h, m] = time.split(":").map(Number);
+    const newM = increment ? (m + 5) % 60 : (m - 5 + 60) % 60;
+    const formatted = `${String(h).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+    
+    if (isSlot1) {
+      if (isOpen) setSlotOpen1(formatted);
+      else setSlotClose1(formatted);
+    } else {
+      if (isOpen) setSlotOpen2(formatted);
+      else setSlotClose2(formatted);
+    }
+  };
+
+  const validateSlotsLocally = (): boolean => {
+    const toMinutes = (timeStr: string) => {
+      const [h, m] = timeStr.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    const startA = toMinutes(slotOpen1);
+    const endA = toMinutes(slotClose1) <= startA 
+      ? toMinutes(slotClose1) + 24 * 60 
+      : toMinutes(slotClose1);
+    
+    // Check duration 1
+    if (endA - startA < 5) {
+      Alert.alert("Horario Inválido", "La duración del primer rango debe ser de al menos 5 minutos.");
+      return false;
+    }
+
+    if (slotHasSecond) {
+      const startB = toMinutes(slotOpen2);
+      const endB = toMinutes(slotClose2) <= startB 
+        ? toMinutes(slotClose2) + 24 * 60 
+        : toMinutes(slotClose2);
+
+      // Check duration 2
+      if (endB - startB < 5) {
+        Alert.alert("Horario Inválido", "La duración del segundo rango debe ser de al menos 5 minutos.");
+        return false;
+      }
+
+      // Check overlap: max(startA, startB) < min(endA, endB)
+      if (Math.max(startA, startB) < Math.min(endA, endB)) {
+        Alert.alert(
+          "Horarios Superpuestos",
+          "Los rangos horarios de atención ingresados se superponen. Por favor, asegúrate de que no coincidan."
+        );
+        return false;
+      }
+    }
+
+    return true;
   };
 
   const handleAddService = () => {
@@ -278,96 +453,333 @@ export default function ServicesScreen({ user, navigation, setActiveTab, onUpdat
         </TouchableOpacity>
       </View>
 
-      {/* Modal: Seleccioná tus días de atención */}
+      {/* Modal: Configuración de Días y Horarios de Atención */}
       <Modal
         visible={daysModalVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setDaysModalVisible(false)}
+        onRequestClose={() => {
+          if (activeView === "slots") {
+            setActiveView("days");
+          } else {
+            setDaysModalVisible(false);
+          }
+        }}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Seleccioná tus días de atención</Text>
-            </View>
+          {activeView === "days" ? (
+            <View style={styles.modalCard}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Seleccioná tus días de atención</Text>
+              </View>
 
-            {/* Modal Content (List) */}
-            <ScrollView style={styles.modalScroll} bounces={false}>
-              <View style={styles.daysListContainer}>
-                {ALL_WEEKDAYS.map((day, index) => {
-                  const isChecked = selectedDays.includes(day);
-                  const isLast = index === ALL_WEEKDAYS.length - 1;
-                  return (
-                    <View
-                      key={day}
-                      style={[
-                        styles.dayRow,
-                        !isLast && styles.dayRowBorder,
-                      ]}
-                    >
+              {/* Modal Content (List) */}
+              <ScrollView style={styles.modalScroll} bounces={false}>
+                <View style={styles.daysListContainer}>
+                  {ALL_WEEKDAYS.map((day, index) => {
+                    const isChecked = !!selectedDaysObj[day]?.is_active;
+                    const isLast = index === ALL_WEEKDAYS.length - 1;
+                    return (
+                      <View
+                        key={day}
+                        style={[
+                          styles.dayRow,
+                          !isLast && styles.dayRowBorder,
+                        ]}
+                      >
+                        <TouchableOpacity
+                          style={styles.dayCheckboxLabel}
+                          onPress={() => toggleDay(day)}
+                          activeOpacity={0.7}
+                        >
+                          <View
+                            style={[
+                              styles.checkboxCircle,
+                              isChecked ? styles.checkboxCheckedBg : styles.checkboxUncheckedBg,
+                            ]}
+                          >
+                            {isChecked && (
+                              <MaterialIcons name="check" size={14} color="#ffffff" />
+                            )}
+                          </View>
+                          <Text style={styles.dayNameText}>{day}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => isChecked && handleEditSlots(day)}
+                          disabled={!isChecked}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.editSlotsBtnText,
+                              isChecked ? styles.editSlotsBtnActive : styles.editSlotsBtnDisabled,
+                            ]}
+                          >
+                            Editar slots
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Modal Footer */}
+              <View style={styles.modalFooterRow}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setDaysModalVisible(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={saveDays}
+                  activeOpacity={0.8}
+                  disabled={savingDays}
+                >
+                  {savingDays ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.saveBtnText}>Guardar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.modalCard, { borderRadius: 20 }]}>
+              {/* Modal Header */}
+              <View style={styles.modalSlotsHeader}>
+                <TouchableOpacity
+                  style={styles.modalSlotsBackButton}
+                  onPress={() => setActiveView("days")}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="arrow-back" size={24} color="#00694c" />
+                </TouchableOpacity>
+                <Text style={styles.modalSlotsTitle}>Configurá tus horarios de atención</Text>
+                <View style={{ width: 40 }} />
+              </View>
+
+              {/* Modal Content */}
+              <View style={styles.modalSlotsContent}>
+                <Text style={styles.modalSlotsSubtitle}>
+                  Podés ofrecer hasta dos rangos de horarios para el día {editingDay}.
+                </Text>
+
+                {/* First Range Vertical Stack */}
+                <View style={styles.timeRangeVerticalContainer}>
+                  <View style={styles.timeInputColCentered}>
+                    <Text style={styles.timeLabelCentered}>Apertura</Text>
+                    <View style={styles.timeAdjustmentBoxCentered}>
                       <TouchableOpacity
-                        style={styles.dayCheckboxLabel}
-                        onPress={() => toggleDay(day)}
+                        style={styles.adjustBtn}
+                        onPress={() => adjustHour(slotOpen1, true, true, false)}
                         activeOpacity={0.7}
                       >
-                        <View
-                          style={[
-                            styles.checkboxCircle,
-                            isChecked ? styles.checkboxCheckedBg : styles.checkboxUncheckedBg,
-                          ]}
-                        >
-                          {isChecked && (
-                            <MaterialIcons name="check" size={14} color="#ffffff" />
-                          )}
-                        </View>
-                        <Text style={styles.dayNameText}>{day}</Text>
+                        <MaterialIcons name="remove" size={16} color="#00694c" />
+                      </TouchableOpacity>
+                      <Text style={styles.timeNumberText}>{slotOpen1.split(":")[0]}</Text>
+                      <TouchableOpacity
+                        style={styles.adjustBtn}
+                        onPress={() => adjustHour(slotOpen1, true, true, true)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="add" size={16} color="#00694c" />
                       </TouchableOpacity>
 
+                      <Text style={styles.colonText}>:</Text>
+
                       <TouchableOpacity
-                        onPress={() => isChecked && handleEditSlots(day)}
-                        disabled={!isChecked}
+                        style={styles.adjustBtn}
+                        onPress={() => adjustMinutes(slotOpen1, true, true, false)}
                         activeOpacity={0.7}
                       >
-                        <Text
-                          style={[
-                            styles.editSlotsBtnText,
-                            isChecked ? styles.editSlotsBtnActive : styles.editSlotsBtnDisabled,
-                          ]}
-                        >
-                          Editar slots
-                        </Text>
+                        <MaterialIcons name="remove" size={16} color="#00694c" />
+                      </TouchableOpacity>
+                      <Text style={styles.timeNumberText}>{slotOpen1.split(":")[1]}</Text>
+                      <TouchableOpacity
+                        style={styles.adjustBtn}
+                        onPress={() => adjustMinutes(slotOpen1, true, true, true)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="add" size={16} color="#00694c" />
                       </TouchableOpacity>
                     </View>
-                  );
-                })}
-              </View>
-            </ScrollView>
+                  </View>
 
-            {/* Modal Footer */}
-            <View style={styles.modalFooterRow}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setDaysModalVisible(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
+                  <View style={styles.timeInputColCentered}>
+                    <Text style={styles.timeLabelCentered}>Cierre</Text>
+                    <View style={styles.timeAdjustmentBoxCentered}>
+                      <TouchableOpacity
+                        style={styles.adjustBtn}
+                        onPress={() => adjustHour(slotClose1, true, false, false)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="remove" size={16} color="#00694c" />
+                      </TouchableOpacity>
+                      <Text style={styles.timeNumberText}>{slotClose1.split(":")[0]}</Text>
+                      <TouchableOpacity
+                        style={styles.adjustBtn}
+                        onPress={() => adjustHour(slotClose1, true, false, true)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="add" size={16} color="#00694c" />
+                      </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={saveDays}
-                activeOpacity={0.8}
-                disabled={savingDays}
-              >
-                {savingDays ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.saveBtnText}>Guardar</Text>
+                      <Text style={styles.colonText}>:</Text>
+
+                      <TouchableOpacity
+                        style={styles.adjustBtn}
+                        onPress={() => adjustMinutes(slotClose1, true, false, false)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="remove" size={16} color="#00694c" />
+                      </TouchableOpacity>
+                      <Text style={styles.timeNumberText}>{slotClose1.split(":")[1]}</Text>
+                      <TouchableOpacity
+                        style={styles.adjustBtn}
+                        onPress={() => adjustMinutes(slotClose1, true, false, true)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="add" size={16} color="#00694c" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Second Range Header w/ Toggle */}
+                <View style={styles.secondRangeToggleRow}>
+                  <Text style={styles.secondRangeLabel}>Segundo rango (opcional)</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.smallSwitchContainer,
+                      slotHasSecond ? styles.switchActiveBg : styles.switchInactiveBg,
+                    ]}
+                    onPress={() => setSlotHasSecond(!slotHasSecond)}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      style={[
+                        styles.smallSwitchThumb,
+                        slotHasSecond ? styles.smallSwitchThumbActive : styles.smallSwitchThumbInactive,
+                      ]}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Second Range Vertical Stack */}
+                {slotHasSecond && (
+                  <View style={styles.timeRangeVerticalContainer}>
+                    <View style={styles.timeInputColCentered}>
+                      <Text style={styles.timeLabelCentered}>Apertura</Text>
+                      <View style={styles.timeAdjustmentBoxCentered}>
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustHour(slotOpen2, false, true, false)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="remove" size={16} color="#00694c" />
+                        </TouchableOpacity>
+                        <Text style={styles.timeNumberText}>{slotOpen2.split(":")[0]}</Text>
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustHour(slotOpen2, false, true, true)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="add" size={16} color="#00694c" />
+                        </TouchableOpacity>
+
+                        <Text style={styles.colonText}>:</Text>
+
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustMinutes(slotOpen2, false, true, false)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="remove" size={16} color="#00694c" />
+                        </TouchableOpacity>
+                        <Text style={styles.timeNumberText}>{slotOpen2.split(":")[1]}</Text>
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustMinutes(slotOpen2, false, true, true)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="add" size={16} color="#00694c" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.timeInputColCentered}>
+                      <Text style={styles.timeLabelCentered}>Cierre</Text>
+                      <View style={styles.timeAdjustmentBoxCentered}>
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustHour(slotClose2, false, false, false)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="remove" size={16} color="#00694c" />
+                        </TouchableOpacity>
+                        <Text style={styles.timeNumberText}>{slotClose2.split(":")[0]}</Text>
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustHour(slotClose2, false, false, true)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="add" size={16} color="#00694c" />
+                        </TouchableOpacity>
+
+                        <Text style={styles.colonText}>:</Text>
+
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustMinutes(slotClose2, false, false, false)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="remove" size={16} color="#00694c" />
+                        </TouchableOpacity>
+                        <Text style={styles.timeNumberText}>{slotClose2.split(":")[1]}</Text>
+                        <TouchableOpacity
+                          style={styles.adjustBtn}
+                          onPress={() => adjustMinutes(slotClose2, false, false, true)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="add" size={16} color="#00694c" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
                 )}
-              </TouchableOpacity>
+
+                {/* Replicate Button */}
+                <TouchableOpacity
+                  style={styles.replicateBtn}
+                  onPress={replicateSlotsToAllDays}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="content-copy" size={16} color="#00694c" style={{ marginRight: 8 }} />
+                  <Text style={styles.replicateBtnText}>Replicar estos horarios a todos los días</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Modal Footer */}
+              <View style={[styles.modalFooterRow, { paddingTop: 0 }]}>
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: "#00694c" }]}
+                  onPress={saveSlots}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.saveBtnText}>Guardar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
         </View>
       </Modal>
     </View>
@@ -640,6 +1052,164 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  // Modal Slots Header Styles
+  modalSlotsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 64,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e3e1",
+  },
+  modalSlotsBackButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+  },
+  modalSlotsTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#181c1c",
+    flex: 1,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  modalSlotsContent: {
+    padding: 24,
+    gap: 24,
+  },
+  modalSlotsSubtitle: {
+    fontSize: 14,
+    color: "#3d4943",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  // Time Selector Styles
+  timeRangeVerticalContainer: {
+    width: "100%",
+    alignItems: "center",
+    gap: 16,
+  },
+  timeInputColCentered: {
+    alignItems: "center",
+    width: "100%",
+  },
+  timeLabelCentered: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#3d4943",
+    marginBottom: 6,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  timeAdjustmentBoxCentered: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: "#bccac1",
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 8,
+    width: 220,
+  },
+  adjustBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1f4f2",
+  },
+  timeNumberText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#181c1c",
+    marginHorizontal: 6,
+    width: 24,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  colonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#3d4943",
+    marginHorizontal: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#e0e3e1",
+    marginVertical: 4,
+  },
+  secondRangeToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  secondRangeLabel: {
+    fontSize: 14,
+    color: "#181c1c",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  smallSwitchContainer: {
+    width: 52,
+    height: 32,
+    borderRadius: 16,
+    padding: 2,
+    justifyContent: "center",
+  },
+  smallSwitchThumb: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  smallSwitchThumbActive: {
+    alignSelf: "flex-end",
+  },
+  smallSwitchThumbInactive: {
+    alignSelf: "flex-start",
+  },
+  switchActiveBg: {
+    backgroundColor: "#00694c",
+  },
+  switchInactiveBg: {
+    backgroundColor: "#d7dbd9",
+  },
+  replicateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#00694c",
+    borderRadius: 12,
+    height: 48,
+    width: "100%",
+    marginTop: 12,
+    backgroundColor: "#f4fffa",
+  },
+  replicateBtnText: {
+    color: "#00694c",
     fontSize: 14,
     fontWeight: "600",
     fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
