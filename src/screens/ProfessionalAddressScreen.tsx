@@ -28,71 +28,7 @@ export default function ProfessionalAddressScreen({ route, navigation }: any) {
   const [shopAddress, setShopAddress] = useState<string>(profile.shop_address || "");
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Modal states
-  const [slotsModalVisible, setSlotsModalVisible] = useState<boolean>(false);
-  const [openTime1, setOpenTime1] = useState<string>(profile.open_time_1 || "08:00");
-  const [closeTime1, setCloseTime1] = useState<string>(profile.close_time_1 || "12:00");
-  const [hasSecondRange, setHasSecondRange] = useState<boolean>(
-    profile.has_second_range === 1 || profile.has_second_range === true
-  );
-  const [openTime2, setOpenTime2] = useState<string>(profile.open_time_2 || "15:30");
-  const [closeTime2, setCloseTime2] = useState<string>(profile.close_time_2 || "21:00");
 
-  // Temporary modal states
-  const [tempOpenTime1, setTempOpenTime1] = useState<string>("");
-  const [tempCloseTime1, setTempCloseTime1] = useState<string>("");
-  const [tempHasSecondRange, setTempHasSecondRange] = useState<boolean>(false);
-  const [tempOpenTime2, setTempOpenTime2] = useState<string>("");
-  const [tempCloseTime2, setTempCloseTime2] = useState<string>("");
-
-  const openSlotsModal = () => {
-    setTempOpenTime1(openTime1);
-    setTempCloseTime1(closeTime1);
-    setTempHasSecondRange(hasSecondRange);
-    setTempOpenTime2(openTime2);
-    setTempCloseTime2(closeTime2);
-    setSlotsModalVisible(true);
-  };
-
-  const validateTime = (time: string): boolean => {
-    const regex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    return regex.test(time.trim());
-  };
-
-  const formatTimeInput = (text: string): string => {
-    // Remove non-numeric characters except colon
-    let cleaned = text.replace(/[^0-9:]/g, "");
-    
-    // Auto insert colon
-    if (cleaned.length === 2 && !cleaned.includes(":")) {
-      cleaned = cleaned + ":";
-    } else if (cleaned.length === 3 && cleaned[2] !== ":") {
-      cleaned = cleaned.slice(0, 2) + ":" + cleaned[2];
-    }
-    
-    return cleaned.slice(0, 5);
-  };
-
-  const saveSlotsLocally = () => {
-    if (!validateTime(tempOpenTime1) || !validateTime(tempCloseTime1)) {
-      Alert.alert("Formato Inválido", "El primer rango de horarios debe estar en formato HH:MM (ej. 08:00 o 12:30)");
-      return;
-    }
-
-    if (tempHasSecondRange) {
-      if (!validateTime(tempOpenTime2) || !validateTime(tempCloseTime2)) {
-        Alert.alert("Formato Inválido", "El segundo rango de horarios debe estar en formato HH:MM (ej. 15:30 o 21:00)");
-        return;
-      }
-    }
-
-    setOpenTime1(tempOpenTime1.trim());
-    setCloseTime1(tempCloseTime1.trim());
-    setHasSecondRange(tempHasSecondRange);
-    setOpenTime2(tempOpenTime2.trim());
-    setCloseTime2(tempCloseTime2.trim());
-    setSlotsModalVisible(false);
-  };
 
   const handleSave = async () => {
     if (hasPhysicalShop && !shopAddress.trim()) {
@@ -108,16 +44,11 @@ export default function ProfessionalAddressScreen({ route, navigation }: any) {
         email: user.email,
         has_physical_shop: hasPhysicalShop,
         shop_address: hasPhysicalShop ? shopAddress.trim() : null,
-        open_time_1: openTime1,
-        close_time_1: closeTime1,
-        has_second_range: hasSecondRange,
-        open_time_2: openTime2,
-        close_time_2: closeTime2,
       };
 
       const response = await api.put("/profile", payload);
       onUpdateUser(response.data.user);
-      Alert.alert("Éxito", "Domicilio y horarios actualizados correctamente");
+      Alert.alert("Éxito", "Domicilio actualizado correctamente");
       navigation.goBack();
     } catch (error: any) {
       console.log(error);
@@ -133,11 +64,6 @@ export default function ProfessionalAddressScreen({ route, navigation }: any) {
           ...profile,
           has_physical_shop: hasPhysicalShop,
           shop_address: hasPhysicalShop ? shopAddress.trim() : null,
-          open_time_1: openTime1,
-          close_time_1: closeTime1,
-          has_second_range: hasSecondRange,
-          open_time_2: openTime2,
-          close_time_2: closeTime2,
         },
       };
       onUpdateUser(updatedUser);
@@ -202,24 +128,6 @@ export default function ProfessionalAddressScreen({ route, navigation }: any) {
                   placeholderTextColor="#3d4943"
                 />
               </View>
-
-              {/* Hours Configuration Row */}
-              <Text style={[styles.inputSubtitle, { marginTop: 16 }]}>Horarios de atención.</Text>
-              <TouchableOpacity
-                style={styles.hoursCard}
-                onPress={openSlotsModal}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons name="schedule" size={24} color="#3d4943" style={styles.hoursIcon} />
-                <View style={styles.hoursContent}>
-                  <Text style={styles.hoursTitle}>Horarios de atención</Text>
-                  <Text style={styles.hoursSubtitle}>
-                    {openTime1} - {closeTime1}
-                    {hasSecondRange ? ` / ${openTime2} - ${closeTime2}` : ""}
-                  </Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color="#3d4943" />
-              </TouchableOpacity>
             </View>
           )}
         </ScrollView>
@@ -241,133 +149,7 @@ export default function ProfessionalAddressScreen({ route, navigation }: any) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* --- MODAL HORARIOS DE ATENCIÓN --- */}
-      <Modal
-        visible={slotsModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setSlotsModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <TouchableOpacity
-                style={styles.modalBackButton}
-                onPress={() => setSlotsModalVisible(false)}
-              >
-                <MaterialIcons name="arrow-back" size={24} color="#00694c" />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Configurá tus horarios</Text>
-              <View style={styles.headerSpacer} />
-            </View>
 
-            {/* Modal Content */}
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              <Text style={styles.modalSubtitle}>
-                Podés ofrecer hasta dos rangos de horarios.
-              </Text>
-
-              {/* First Range Inputs */}
-              <View style={styles.timeRangeRow}>
-                <View style={styles.timeInputCol}>
-                  <Text style={styles.timeLabel}>Apertura</Text>
-                  <View style={styles.timeInputContainer}>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={tempOpenTime1}
-                      onChangeText={(text) => setTempOpenTime1(formatTimeInput(text))}
-                      placeholder="08:00"
-                      placeholderTextColor="#bccac1"
-                      keyboardType="number-pad"
-                      maxLength={5}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.timeInputCol}>
-                  <Text style={styles.timeLabel}>Cierre</Text>
-                  <View style={styles.timeInputContainer}>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={tempCloseTime1}
-                      onChangeText={(text) => setTempCloseTime1(formatTimeInput(text))}
-                      placeholder="12:00"
-                      placeholderTextColor="#bccac1"
-                      keyboardType="number-pad"
-                      maxLength={5}
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Second Range Toggle */}
-              <View style={styles.secondRangeToggleRow}>
-                <Text style={styles.secondRangeLabel}>Segundo rango (opcional)</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.smallSwitchContainer,
-                    tempHasSecondRange ? styles.switchActiveBg : styles.switchInactiveBg,
-                  ]}
-                  onPress={() => setTempHasSecondRange(!tempHasSecondRange)}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.smallSwitchThumb,
-                      tempHasSecondRange ? styles.smallSwitchThumbActive : styles.smallSwitchThumbInactive,
-                    ]}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Second Range Inputs */}
-              {tempHasSecondRange && (
-                <View style={styles.timeRangeRow}>
-                  <View style={styles.timeInputCol}>
-                    <Text style={styles.timeLabel}>Apertura</Text>
-                    <View style={styles.timeInputContainer}>
-                      <TextInput
-                        style={styles.timeInput}
-                        value={tempOpenTime2}
-                        onChangeText={(text) => setTempOpenTime2(formatTimeInput(text))}
-                        placeholder="15:30"
-                        placeholderTextColor="#bccac1"
-                        keyboardType="number-pad"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.timeInputCol}>
-                    <Text style={styles.timeLabel}>Cierre</Text>
-                    <View style={styles.timeInputContainer}>
-                      <TextInput
-                        style={styles.timeInput}
-                        value={tempCloseTime2}
-                        onChangeText={(text) => setTempCloseTime2(formatTimeInput(text))}
-                        placeholder="21:00"
-                        placeholderTextColor="#bccac1"
-                        keyboardType="number-pad"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Modal Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={saveSlotsLocally}>
-                <Text style={styles.modalSaveBtnText}>Guardar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
