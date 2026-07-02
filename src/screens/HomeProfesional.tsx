@@ -44,6 +44,7 @@ export default function HomeProfesional({ route, navigation }: any) {
             user={user}
             navigation={navigation}
             setActiveTab={setActiveTab}
+            onUpdateUser={setUser}
           />
         );
       case "perfil":
