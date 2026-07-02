@@ -1,14 +1,19 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
 import ProfileScreen from "./ProfileScreen";
+import ServicesScreen from "./ServicesScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
 
 export default function HomeProfesional({ route, navigation }: any) {
   const { user: initialUser } = route.params || {};
   const [user, setUser] = useState(initialUser || { name: "Profesional", role: "professional" });
   const [activeTab, setActiveTab] = useState("negocio");
+  const TABS_NAMES: Record<string, string> = {
+    "negocio": "Mi negocio",
+    "servicios": "Mis Servicios",
+    "perfil": "Mi Perfil",
+  };
 
   const handleLogout = async () => {
     try {
@@ -39,15 +44,12 @@ export default function HomeProfesional({ route, navigation }: any) {
         );
       case "servicios":
         return (
-          <View style={styles.tabContent}>
-            <View style={styles.placeholderCard}>
-              <MaterialIcons name="storefront" size={64} color="#008560" style={styles.placeholderIcon} />
-              <Text style={styles.placeholderTitle}>Servicios</Text>
-              <Text style={styles.placeholderSubtitle}>
-                Acá vas a poder configurar y gestionar los servicios que ofreces al público.
-              </Text>
-            </View>
-          </View>
+          <ServicesScreen
+            user={user}
+            navigation={navigation}
+            setActiveTab={setActiveTab}
+            onUpdateUser={setUser}
+          />
         );
       case "perfil":
         return (
@@ -65,10 +67,10 @@ export default function HomeProfesional({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7faf8" />
-      
+
       {/* TopAppBar */}
       <View style={styles.header}>
-        <Text style={styles.logo}>alToque</Text>
+        <Text style={styles.logo}>{TABS_NAMES[activeTab] || "alToque"}</Text>
       </View>
 
       {/* Main Content Area */}
@@ -117,6 +119,14 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: "#181c1c",
+    textAlign: "center",
+    flex: 1,
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   },
   mainContent: {
     flex: 1,

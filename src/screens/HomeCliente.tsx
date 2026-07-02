@@ -10,6 +10,11 @@ export default function HomeCliente({ route, navigation }: any) {
   const { user: initialUser } = route.params || {};
   const [user, setUser] = useState(initialUser || { name: "Cliente", role: "client" });
   const [activeTab, setActiveTab] = useState("explorar");
+  const TABS_NAMES: Record<string, string> = {
+    "perfil": "Mi Perfil",
+    "turnos": "Mis Turnos",
+    "explorar": "Explorar"
+  };
 
   const handleLogout = async () => {
     try {
@@ -57,11 +62,11 @@ export default function HomeCliente({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7faf8" />
-      
+
       {/* TopAppBar */}
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
-        <Text style={[styles.logo, { color: '#008560' }]}>alToque</Text>
+        <Text style={[styles.logo, { color: '#008560' }]}>{TABS_NAMES[activeTab] || "alToque"}</Text>
         <TouchableOpacity style={styles.headerButton}>
           <View>
             <Feather name="bell" size={24} color="#3d4943" />
