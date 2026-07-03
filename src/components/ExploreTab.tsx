@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 
 export default function ExploreTab() {
   const navigation = useNavigation<any>();
+  const [searchText, setSearchText] = useState('');
 
   const handleSearch = () => {
-    navigation.navigate('SearchResults', { category: 'Búsqueda' });
+    navigation.navigate('SearchResults', { category: 'Búsqueda', search: searchText });
   };
 
   const handleCategoryPress = (categoryName: string) => {
@@ -25,6 +26,9 @@ export default function ExploreTab() {
           style={styles.searchInput}
           placeholder="Buscar peluquería, plomero..."
           placeholderTextColor="#a0aab2"
+          value={searchText}
+          onChangeText={setSearchText}
+          onSubmitEditing={handleSearch}
         />
         <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
           <Text style={styles.searchButtonText}>Buscar</Text>

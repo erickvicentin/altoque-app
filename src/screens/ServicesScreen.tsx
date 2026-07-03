@@ -1445,6 +1445,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
+  timeLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#3d4943",
+    marginBottom: 6,
+    textAlign: "left",
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
   timeLabelCentered: {
     fontSize: 12,
     fontWeight: "600",
