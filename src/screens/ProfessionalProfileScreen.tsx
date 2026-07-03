@@ -216,7 +216,7 @@ export default function ProfessionalProfileScreen() {
   }
 
   const handleVerDisponibilidad = () => {
-    Alert.alert("Disponibilidad", `Mostrando agenda disponible para ${detail.name}`);
+    navigation.navigate("Disponibilidad", { professional });
   };
 
   const handleVerOpiniones = () => {
