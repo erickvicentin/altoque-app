@@ -14,6 +14,8 @@ import ProfessionalProfileScreen from "./src/screens/ProfessionalProfileScreen";
 import ClientAppointmentsScreen from "./src/screens/ClientAppointmentsScreen";
 import DisponibilidadScreen from "./src/screens/DisponibilidadScreen";
 import ConfirmarReservaScreen from "./src/screens/ConfirmarReservaScreen";
+import SolicitudesScreen from "./src/screens/SolicitudesScreen";
+import TurnoDetailScreen from "./src/screens/TurnoDetailScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +38,8 @@ export default function App() {
         <Stack.Screen name="ClientAppointments" component={ClientAppointmentsScreen} />
         <Stack.Screen name="Disponibilidad" component={DisponibilidadScreen} />
         <Stack.Screen name="ConfirmarReserva" component={ConfirmarReservaScreen} />
+        <Stack.Screen name="Solicitudes" component={SolicitudesScreen} />
+        <Stack.Screen name="TurnoDetail" component={TurnoDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

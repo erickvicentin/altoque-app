@@ -253,7 +253,10 @@ export default function HomeCliente({ route, navigation }: any) {
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={[styles.logo, { color: '#008560' }]}>{TABS_NAMES[activeTab] || "alToque"}</Text>
-        <TouchableOpacity style={styles.headerButton}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.navigate("Solicitudes", { user })}
+        >
           <View>
             <Feather name="bell" size={24} color="#3d4943" />
             <View style={styles.notificationDot} />
