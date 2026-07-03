@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,53 +6,74 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  SafeAreaView,
   StatusBar,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-
-interface Appointment {
-  id: string;
-  serviceName: string;
-  professionalName: string;
-  timeText: string;
-  imageUrl: string;
-  isPrimaryColor: boolean; // Indica si el texto/icono del evento usa el color primary o tertiary-container
-}
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import api from "../services/api";
 
 export default function ClientAppointmentsScreen() {
   const navigation = useNavigation<any>();
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const appointments: Appointment[] = [
-    {
-      id: "1",
-      serviceName: "Corte Clásico",
-      professionalName: "Juan Perez",
-      timeText: "Mañana, 10:00 AM",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuBDyBj5TaecCAsFprwmZlD-c_anCrDnZEWxM-CqeCMhA1JvXkvukrUqERYryCCSqSydbCIU0NH8dXPKIGdjvDTfB_At78BYA1ZVbCJ0x1bA9m0fW7rMiCPaUAnqPvcKIDbntAyB6sWlCy_DQfrB_AoAtmqX22s3e57HPvE2ZvsfIe_5DersGjw4_gqTGkzD2YejCuzqaRBsR2LRfbtw6kHYZ0hxg5q0pAgVFmbPfYC8OBJZq4YBBEPUidEZ5qvi03mG7oiXQrsnVA",
-      isPrimaryColor: true,
-    },
-    {
-      id: "2",
-      serviceName: "Masaje Descontracturante",
-      professionalName: "Maria Rossi",
-      timeText: "Jueves 24, 15:30",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuCbAQn6O1hmn8DZp8XfSjQ0BaFPLF263EjoWQZsHJNPk3RmsAAvVGn8WFyuJG_XRRkSo6rn7tNh-bqvY1sBskBhzlpCkA-9sDysPfmdAhfvGJ40EKY-ivDL91iXX2u8BXWeT7RNUUW5TbaCN60Ld6V-LojB9hXfhSgvBGuNyWhAhgsM_B5R7qm0Lz9Ay-Oh8_VLZMvAvVj1TXi724WKgCbyzyHGE0Gyo5Yo2vfKc1ebQ0gOeaVYWCWCoLR8jFXjTtUHcqGh5exWrQ",
-      isPrimaryColor: false,
-    },
-    {
-      id: "3",
-      serviceName: "Barba y Perfilado",
-      professionalName: "Carlos Gomez",
-      timeText: "Lunes 28, 11:00 AM",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuCDuUR160Eeg8yvi4Zw7n9gcHcbiPgVsunjTa9DHLOrXftgTcV8rbWEZRe_v11WxV-PPIfFaVJ_uNPUSQVD8ysdWeY6MGDs5MlK4wXR1_LRpGg_qJ1T0UP-iSD11_QMwONtdVlFqoZ0JedyQYjaU8rzjJTQcRfWgaPHTzZSXkc2amk9TRGCaSHiLtZXMoPyO2vuAIJMnovsa0Xf3lUWYKQZjXnTIju0R7bMf74z7rGUzabGj8ejcr_q-htWLdBG0jl2wy0R4Xf2Xg",
-      isPrimaryColor: false,
-    },
-  ];
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchAppointments();
+    }, [])
+  );
+
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get("/appointments");
+      const list = response.data || [];
+      // Only keep 'pending' or 'accepted' appointments
+      const filtered = list.filter(
+        (app: any) => app.status === "pending" || app.status === "accepted"
+      );
+      
+      // Sort upcoming first
+      filtered.sort((a: any, b: any) => {
+        const dateA = new Date(`${a.date}T${a.start_time}`);
+        const dateB = new Date(`${b.date}T${b.start_time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      setAppointments(filtered);
+    } catch (error) {
+      console.error("Error fetching client appointments:", error);
+      Alert.alert("Error", "No se pudieron cargar tus turnos.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateStr: string, timeStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const date = new Date(year, month, day);
+
+      const DAYS_OF_WEEK = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const MONTH_NAMES = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+      ];
+      const dayName = DAYS_OF_WEEK[date.getDay()];
+      const monthName = MONTH_NAMES[date.getMonth()];
+      const cleanTime = timeStr.substring(0, 5);
+
+      return `${dayName}, ${day} de ${monthName} - ${cleanTime} hs`;
+    } catch (e) {
+      return `${dateStr} a las ${timeStr}`;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -78,36 +99,72 @@ export default function ClientAppointmentsScreen() {
       >
         <Text style={styles.title}>Próximos Turnos</Text>
 
-        <View style={styles.cardsContainer}>
-          {appointments.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <View style={styles.imageContainer}>
-                <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
-              </View>
+        {loading ? (
+          <ActivityIndicator size="large" color="#008560" style={{ marginTop: 40 }} />
+        ) : appointments.length === 0 ? (
+          <View style={styles.noAppointmentsContainer}>
+            <Feather name="calendar" size={64} color="#707d76" style={{ marginBottom: 16 }} />
+            <Text style={styles.noAppointmentsTitle}>No tenés turnos programados</Text>
+            <Text style={styles.noAppointmentsSubtitle}>
+              Los turnos que solicites y estén en espera o confirmados aparecerán aquí.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.cardsContainer}>
+            {appointments.map((item) => {
+              const isPending = item.status === "pending";
+              const profUser = item.professional_profile?.user || {};
+              const service = item.service || {};
 
-              <View style={styles.infoContainer}>
-                <Text style={styles.serviceName}>{item.serviceName}</Text>
-                <Text style={styles.professionalName}>con {item.professionalName}</Text>
-                
-                <View style={styles.timeRow}>
-                  <MaterialIcons
-                    name="event"
-                    size={16}
-                    color={item.isPrimaryColor ? "#00694c" : "#667873"}
-                  />
-                  <Text
-                    style={[
-                      styles.timeText,
-                      { color: item.isPrimaryColor ? "#00694c" : "#667873" },
-                    ]}
-                  >
-                    {item.timeText}
-                  </Text>
+              return (
+                <View key={item.id} style={styles.card}>
+                  <View style={styles.imageContainer}>
+                    {profUser.avatar_url ? (
+                      <Image source={{ uri: profUser.avatar_url }} style={styles.cardImage} />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Feather name="user" size={32} color="#008560" />
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.infoContainer}>
+                    <Text style={styles.serviceName}>{service.name || "Servicio"}</Text>
+                    <Text style={styles.professionalName}>con {profUser.name || "Profesional"}</Text>
+                    
+                    <View style={styles.timeRow}>
+                      <MaterialIcons
+                        name="event"
+                        size={16}
+                        color={isPending ? "#d97706" : "#00694c"}
+                      />
+                      <Text
+                        style={[
+                          styles.timeText,
+                          { color: isPending ? "#d97706" : "#00694c" },
+                        ]}
+                      >
+                        {formatDateTime(item.date, item.start_time)}
+                      </Text>
+                    </View>
+
+                    <View style={[
+                      styles.statusBadge,
+                      isPending ? styles.statusBadgePending : styles.statusBadgeAccepted
+                    ]}>
+                      <Text style={[
+                        styles.statusBadgeText,
+                        isPending ? styles.statusBadgeTextPending : styles.statusBadgeTextAccepted
+                      ]}>
+                        {isPending ? "Espera de confirmación" : "Confirmado"}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
-            </View>
-          ))}
-        </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -185,6 +242,13 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  avatarPlaceholder: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#c2f0d9",
+  },
   infoContainer: {
     flex: 1,
     justifyContent: "center",
@@ -203,10 +267,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 12,
+    marginTop: 10,
   },
   timeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
+  },
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  statusBadgePending: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fef3c7",
+    borderWidth: 1,
+  },
+  statusBadgeAccepted: {
+    backgroundColor: "#c2f0d9",
+    borderColor: "#a7f3d0",
+    borderWidth: 1,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  statusBadgeTextPending: {
+    color: "#d97706",
+  },
+  statusBadgeTextAccepted: {
+    color: "#00694c",
+  },
+  noAppointmentsContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 80,
+    paddingHorizontal: 24,
+  },
+  noAppointmentsTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#181c1c",
+    marginBottom: 8,
+  },
+  noAppointmentsSubtitle: {
+    fontSize: 14,
+    color: "#707d76",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

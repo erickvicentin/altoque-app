@@ -5,11 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   Alert,
+  Linking,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
@@ -208,16 +209,39 @@ export default function ProfessionalProfileScreen() {
     professional.isShop
   );
 
+  if (professional.id) {
+    detail.bio = professional.bio || '';
+  } else if (professional.bio !== undefined) {
+    detail.bio = professional.bio || '';
+  }
+
   const handleVerDisponibilidad = () => {
-    Alert.alert("Disponibilidad", `Mostrando agenda disponible para ${detail.name}`);
+    navigation.navigate("Disponibilidad", { professional });
   };
 
   const handleVerOpiniones = () => {
     Alert.alert("Opiniones", `Mostrando ${detail.reviewsCount} opiniones de ${detail.name}`);
   };
 
-  const handleContactarWhatsApp = () => {
-    Alert.alert("WhatsApp", `Abriendo chat de WhatsApp con ${detail.name}`);
+  const handleContactarWhatsApp = async () => {
+    const rawPhone = professional.phone;
+    if (!rawPhone) {
+      Alert.alert("WhatsApp", "Este profesional no posee un número de celular registrado.");
+      return;
+    }
+    const cleanPhone = rawPhone.replace('+', '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent('¡Hola! Te contacto desde la app alToque.')}`;
+    
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "No se pudo abrir WhatsApp. Asegurate de tener la aplicación instalada.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Ocurrió un error al intentar abrir WhatsApp.");
+    }
   };
 
   return (
@@ -269,20 +293,18 @@ export default function ProfessionalProfileScreen() {
         </View>
 
         {/* Bio Card */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Sobre {detail.name.split(" ")[0]}</Text>
-          <View style={styles.bioCard}>
-            <Text style={styles.bioText}>{detail.bio}</Text>
+        {detail.bio ? (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Sobre {detail.name.split(" ")[0]}</Text>
+            <View style={styles.bioCard}>
+              <Text style={styles.bioText}>{detail.bio}</Text>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Stats Bento Grid */}
         <View style={styles.gridContainer}>
-          <View style={styles.gridColPrimary}>
-            <Text style={styles.gridLabelPrimary}>TURNOS COMPLETADOS</Text>
-            <Text style={styles.gridValuePrimary}>{detail.completedAppointments}</Text>
-          </View>
-          <View style={styles.gridColSecondary}>
+          <View style={styles.gridColFull}>
             <Text style={styles.gridLabelSecondary}>TIEMPO DE RESPUESTA</Text>
             <Text style={styles.gridValueSecondary}>{detail.responseTime}</Text>
           </View>
@@ -295,13 +317,6 @@ export default function ProfessionalProfileScreen() {
             onPress={handleVerDisponibilidad}
           >
             <Text style={styles.primaryButtonText}>Ver disponibilidad</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.outlineButton}
-            onPress={handleVerOpiniones}
-          >
-            <Text style={styles.outlineButtonText}>Ver opiniones</Text>
           </TouchableOpacity>
         </View>
 
@@ -463,6 +478,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   gridColSecondary: {
+    flex: 1,
+    backgroundColor: "#f7faf8",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    padding: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 4,
+  },
+  gridColFull: {
     flex: 1,
     backgroundColor: "#f7faf8",
     borderRadius: 8,
