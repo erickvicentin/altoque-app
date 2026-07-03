@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";

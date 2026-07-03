@@ -5,12 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   Alert,
   Linking,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
