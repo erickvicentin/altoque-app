@@ -9,6 +9,7 @@ import {
   StatusBar,
   Image,
   Alert,
+  Linking,
 } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -222,8 +223,25 @@ export default function ProfessionalProfileScreen() {
     Alert.alert("Opiniones", `Mostrando ${detail.reviewsCount} opiniones de ${detail.name}`);
   };
 
-  const handleContactarWhatsApp = () => {
-    Alert.alert("WhatsApp", `Abriendo chat de WhatsApp con ${detail.name}`);
+  const handleContactarWhatsApp = async () => {
+    const rawPhone = professional.phone;
+    if (!rawPhone) {
+      Alert.alert("WhatsApp", "Este profesional no posee un número de celular registrado.");
+      return;
+    }
+    const cleanPhone = rawPhone.replace('+', '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent('¡Hola! Te contacto desde la app alToque.')}`;
+    
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "No se pudo abrir WhatsApp. Asegurate de tener la aplicación instalada.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Ocurrió un error al intentar abrir WhatsApp.");
+    }
   };
 
   return (
