@@ -99,7 +99,10 @@ export default function ExploreTab() {
           </View>
         </View>
       </View>
-      <TouchableOpacity style={styles.moreAppointmentsBtn}>
+      <TouchableOpacity
+        style={styles.moreAppointmentsBtn}
+        onPress={() => navigation.navigate("ClientAppointments")}
+      >
         <Text style={styles.moreAppointmentsText}>Ver más turnos</Text>
       </TouchableOpacity>
 
