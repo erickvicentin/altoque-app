@@ -1,11 +1,61 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import api from '../services/api';
 
 export default function ExploreTab() {
   const navigation = useNavigation<any>();
   const [searchText, setSearchText] = useState('');
+  const [nextAppointment, setNextAppointment] = useState<any>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchNextAppointment();
+    }, [])
+  );
+
+  const fetchNextAppointment = async () => {
+    try {
+      const response = await api.get('/appointments');
+      const list = response.data || [];
+      const upcoming = list.filter(
+        (app: any) => app.status === 'pending' || app.status === 'accepted'
+      );
+      
+      upcoming.sort((a: any, b: any) => {
+        const dateA = new Date(`${a.date}T${a.start_time}`);
+        const dateB = new Date(`${b.date}T${b.start_time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      if (upcoming.length > 0) {
+        setNextAppointment(upcoming[0]);
+      } else {
+        setNextAppointment(null);
+      }
+    } catch (error) {
+      console.error("Error loading next appointment:", error);
+    }
+  };
+
+  const formatAppointmentTime = (dateStr: string, timeStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const date = new Date(year, month, day);
+
+      const daysOfWeek = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      const dayName = daysOfWeek[date.getDay()];
+      const cleanTime = timeStr.substring(0, 5);
+
+      return `${dayName} ${cleanTime} hs`;
+    } catch (e) {
+      return `${dateStr} a las ${timeStr}`;
+    }
+  };
 
   const handleSearch = () => {
     navigation.navigate('SearchResults', { category: 'Búsqueda', search: searchText });
@@ -79,26 +129,47 @@ export default function ExploreTab() {
 
       {/* Upcoming Appointments */}
       <Text style={styles.sectionTitle}>Próximos turnos</Text>
-      <View style={styles.appointmentCard}>
-        <View style={styles.appointmentHeader}>
-          <View>
-            <Text style={styles.appointmentTitle}>Corte-Barba</Text>
-            <Text style={styles.appointmentSubtitle}>con Fran Perez</Text>
+      {nextAppointment ? (
+        <View style={styles.appointmentCard}>
+          <View style={styles.appointmentHeader}>
+            <View>
+              <Text style={styles.appointmentTitle}>{nextAppointment.service?.name || "Servicio"}</Text>
+              <Text style={styles.appointmentSubtitle}>
+                con {nextAppointment.professional_profile?.user?.name || "Profesional"}
+              </Text>
+            </View>
+            <TouchableOpacity>
+              <MaterialIcons name="more-vert" size={24} color="#3d4943" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity>
-            <MaterialIcons name="more-vert" size={24} color="#3d4943" />
-          </TouchableOpacity>
+          <View style={styles.appointmentTags}>
+            <View style={styles.timeTag}>
+              <Feather name="clock" size={14} color="#008560" />
+              <Text style={styles.timeTagText}>
+                {formatAppointmentTime(nextAppointment.date, nextAppointment.start_time)}
+              </Text>
+            </View>
+            <View style={[
+              styles.statusTag,
+              nextAppointment.status === 'pending' && styles.statusTagPending
+            ]}>
+              <Text style={[
+                styles.statusTagText,
+                nextAppointment.status === 'pending' && styles.statusTagTextPending
+              ]}>
+                {nextAppointment.status === 'pending' ? 'Pendiente' : 'Confirmado'}
+              </Text>
+            </View>
+          </View>
         </View>
-        <View style={styles.appointmentTags}>
-          <View style={styles.timeTag}>
-            <Feather name="clock" size={14} color="#008560" />
-            <Text style={styles.timeTagText}>viernes 18:45 hs</Text>
-          </View>
-          <View style={styles.statusTag}>
-            <Text style={styles.statusTagText}>Confirmado</Text>
-          </View>
+      ) : (
+        <View style={styles.noAppointmentsCard}>
+          <Feather name="calendar" size={32} color="#707d76" style={{ marginBottom: 8 }} />
+          <Text style={styles.noAppointmentsText}>No tenés turnos programados.</Text>
+          <Text style={styles.noAppointmentsSubtext}>Explorá categorías para reservar uno.</Text>
         </View>
-      </View>
+      )}
+      
       <TouchableOpacity
         style={styles.moreAppointmentsBtn}
         onPress={() => navigation.navigate("ClientAppointments")}
@@ -252,6 +323,36 @@ const styles = StyleSheet.create({
     color: '#707d76',
     fontSize: 12,
     fontWeight: '600',
+  },
+  statusTagPending: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fef3c7',
+    borderWidth: 1,
+  },
+  statusTagTextPending: {
+    color: '#d97706',
+  },
+  noAppointmentsCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e6e9e7',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  noAppointmentsText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#181c1c',
+    marginBottom: 4,
+  },
+  noAppointmentsSubtext: {
+    fontSize: 13,
+    color: '#707d76',
+    textAlign: 'center',
   },
   moreAppointmentsBtn: {
     alignItems: 'center',
