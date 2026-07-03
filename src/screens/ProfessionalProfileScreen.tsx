@@ -208,6 +208,12 @@ export default function ProfessionalProfileScreen() {
     professional.isShop
   );
 
+  if (professional.id) {
+    detail.bio = professional.bio || '';
+  } else if (professional.bio !== undefined) {
+    detail.bio = professional.bio || '';
+  }
+
   const handleVerDisponibilidad = () => {
     Alert.alert("Disponibilidad", `Mostrando agenda disponible para ${detail.name}`);
   };
@@ -269,20 +275,18 @@ export default function ProfessionalProfileScreen() {
         </View>
 
         {/* Bio Card */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Sobre {detail.name.split(" ")[0]}</Text>
-          <View style={styles.bioCard}>
-            <Text style={styles.bioText}>{detail.bio}</Text>
+        {detail.bio ? (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Sobre {detail.name.split(" ")[0]}</Text>
+            <View style={styles.bioCard}>
+              <Text style={styles.bioText}>{detail.bio}</Text>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Stats Bento Grid */}
         <View style={styles.gridContainer}>
-          <View style={styles.gridColPrimary}>
-            <Text style={styles.gridLabelPrimary}>TURNOS COMPLETADOS</Text>
-            <Text style={styles.gridValuePrimary}>{detail.completedAppointments}</Text>
-          </View>
-          <View style={styles.gridColSecondary}>
+          <View style={styles.gridColFull}>
             <Text style={styles.gridLabelSecondary}>TIEMPO DE RESPUESTA</Text>
             <Text style={styles.gridValueSecondary}>{detail.responseTime}</Text>
           </View>
@@ -295,13 +299,6 @@ export default function ProfessionalProfileScreen() {
             onPress={handleVerDisponibilidad}
           >
             <Text style={styles.primaryButtonText}>Ver disponibilidad</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.outlineButton}
-            onPress={handleVerOpiniones}
-          >
-            <Text style={styles.outlineButtonText}>Ver opiniones</Text>
           </TouchableOpacity>
         </View>
 
@@ -463,6 +460,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   gridColSecondary: {
+    flex: 1,
+    backgroundColor: "#f7faf8",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    padding: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 4,
+  },
+  gridColFull: {
     flex: 1,
     backgroundColor: "#f7faf8",
     borderRadius: 8,
