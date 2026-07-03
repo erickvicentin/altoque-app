@@ -34,6 +34,7 @@ export default function DisponibilidadScreen() {
   const [services, setServices] = useState<any[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const [selectedService, setSelectedService] = useState<any>(null);
+  const [servicesDropdownOpen, setServicesDropdownOpen] = useState(false);
 
   // Calendar States
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -99,37 +100,73 @@ export default function DisponibilidadScreen() {
       return false;
     }
 
-    let workingDaysArray = professional.working_days;
-    if (typeof workingDaysArray === 'string') {
+    let workingDays = professional.working_days;
+    if (typeof workingDays === 'string') {
       try {
-        workingDaysArray = JSON.parse(workingDaysArray);
+        workingDays = JSON.parse(workingDays);
       } catch (e) {
-        workingDaysArray = workingDaysArray.split(',').map((s: string) => s.trim());
+        workingDays = workingDays.split(',').map((s: string) => s.trim());
       }
     }
 
-    if (!Array.isArray(workingDaysArray) || workingDaysArray.length === 0) {
-      return false;
+    const dayName = SPANISH_DAY_NAMES[date.getDay()];
+
+    // Case 1: working_days is an array of strings
+    if (Array.isArray(workingDays)) {
+      const normalizedDayName = normalizeDay(dayName);
+      return workingDays.some(
+        (workDay: string) => normalizeDay(workDay) === normalizedDayName
+      );
     }
 
-    const dayName = SPANISH_DAY_NAMES[date.getDay()];
-    const normalizedDayName = normalizeDay(dayName);
-    
-    return workingDaysArray.some(
-      (workDay: string) => normalizeDay(workDay) === normalizedDayName
-    );
+    // Case 2: working_days is a key-value object (e.g. {"Lunes": { "is_active": true, ... }})
+    if (typeof workingDays === 'object' && workingDays !== null) {
+      const normalizedDayName = normalizeDay(dayName);
+      const matchedKey = Object.keys(workingDays).find(
+        (key) => normalizeDay(key) === normalizedDayName
+      );
+      if (matchedKey) {
+        return !!workingDays[matchedKey]?.is_active;
+      }
+    }
+
+    return false;
   };
 
   // Generate simulated time slots based on professional working hours and selected service
   const generateTimeSlots = () => {
     if (!selectedDate || !selectedService) return;
 
-    // Retrieve working hours or fallback
-    const open1 = professional?.open_time_1 || "08:00";
-    const close1 = professional?.close_time_1 || "12:00";
-    const hasSecond = professional?.has_second_range || false;
-    const open2 = professional?.open_time_2 || "15:30";
-    const close2 = professional?.close_time_2 || "21:00";
+    let workingDays = professional.working_days;
+    if (typeof workingDays === 'string') {
+      try {
+        workingDays = JSON.parse(workingDays);
+      } catch (e) {}
+    }
+
+    const dayName = SPANISH_DAY_NAMES[selectedDate.getDay()];
+    const normalizedDayName = normalizeDay(dayName);
+
+    let open1 = professional?.open_time_1 || "08:00";
+    let close1 = professional?.close_time_1 || "12:00";
+    let hasSecond = professional?.has_second_range || false;
+    let open2 = professional?.open_time_2 || "15:30";
+    let close2 = professional?.close_time_2 || "21:00";
+
+    // If working_days is an object with daily schedules, use the custom daily hours!
+    if (typeof workingDays === 'object' && workingDays !== null && !Array.isArray(workingDays)) {
+      const matchedKey = Object.keys(workingDays).find(
+        (key) => normalizeDay(key) === normalizedDayName
+      );
+      if (matchedKey) {
+        const daySchedule = workingDays[matchedKey];
+        open1 = daySchedule.open_time_1 || open1;
+        close1 = daySchedule.close_time_1 || close1;
+        hasSecond = !!daySchedule.has_second_range;
+        open2 = daySchedule.open_time_2 || open2;
+        close2 = daySchedule.close_time_2 || close2;
+      }
+    }
 
     const slots: string[] = [];
 
@@ -328,28 +365,62 @@ export default function DisponibilidadScreen() {
               <Text style={styles.noServicesText}>Este profesional no tiene servicios configurados.</Text>
             </View>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.servicesScrollContainer}>
-              {services.map((item) => {
-                const isSelected = selectedService?.id === item.id;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.serviceChip,
-                      isSelected && styles.selectedServiceChip
-                    ]}
-                    onPress={() => setSelectedService(item)}
-                  >
-                    <Text style={[styles.serviceChipName, isSelected && styles.selectedServiceChipText]}>
-                      {item.name}
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={styles.dropdownHeader}
+                onPress={() => setServicesDropdownOpen(!servicesDropdownOpen)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.dropdownHeaderTitle}>
+                    {selectedService ? selectedService.name : "Seleccioná un servicio"}
+                  </Text>
+                  {selectedService && (
+                    <Text style={styles.dropdownHeaderSubtitle}>
+                      {selectedService.duration_minutes} min • ${Math.round(selectedService.price)}
                     </Text>
-                    <Text style={[styles.serviceChipMeta, isSelected && styles.selectedServiceChipMetaText]}>
-                      {item.duration_minutes} min • ${Math.round(item.price)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                  )}
+                </View>
+                <Feather
+                  name={servicesDropdownOpen ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#707d76"
+                />
+              </TouchableOpacity>
+
+              {servicesDropdownOpen && (
+                <View style={styles.dropdownList}>
+                  {services.map((item) => {
+                    const isSelected = selectedService?.id === item.id;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[
+                          styles.dropdownItem,
+                          isSelected && styles.dropdownItemActive
+                        ]}
+                        onPress={() => {
+                          setSelectedService(item);
+                          setServicesDropdownOpen(false);
+                        }}
+                      >
+                        <View>
+                          <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextActive]}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.dropdownItemMeta}>
+                            Duración: {item.duration_minutes} min • Precio: ${Math.round(item.price)}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <Feather name="check" size={18} color="#00694c" />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           )}
         </View>
 
@@ -570,41 +641,69 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 4,
   },
-  servicesScrollContainer: {
-    paddingLeft: 4,
-    gap: 12,
-    paddingBottom: 4,
+  dropdownContainer: {
+    position: 'relative',
+    zIndex: 100,
   },
-  serviceChip: {
+  dropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e6e9e7',
-    minWidth: 120,
-    alignItems: 'center',
   },
-  selectedServiceChip: {
-    borderColor: '#00694c',
-    backgroundColor: '#adedd8',
-  },
-  serviceChipName: {
-    fontSize: 14,
+  dropdownHeaderTitle: {
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#181c1c',
-    marginBottom: 4,
   },
-  selectedServiceChipText: {
-    color: '#00694c',
-  },
-  serviceChipMeta: {
-    fontSize: 11,
+  dropdownHeaderSubtitle: {
+    fontSize: 12,
     color: '#707d76',
+    marginTop: 2,
   },
-  selectedServiceChipMetaText: {
+  dropdownList: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e6e9e7',
+    borderRadius: 12,
+    marginTop: 6,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#f1f4f2',
+  },
+  dropdownItemActive: {
+    backgroundColor: '#f4fffa',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#181c1c',
+  },
+  dropdownItemTextActive: {
     color: '#00694c',
-    opacity: 0.8,
+    fontWeight: '700',
+  },
+  dropdownItemMeta: {
+    fontSize: 12,
+    color: '#707d76',
+    marginTop: 2,
   },
   noServicesCard: {
     backgroundColor: '#ffffff',
