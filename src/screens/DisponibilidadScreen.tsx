@@ -285,16 +285,12 @@ export default function DisponibilidadScreen() {
       return;
     }
 
-    const formattedDate = `${selectedDate.getDate()} de ${MONTH_NAMES[selectedDate.getMonth()]} de ${selectedDate.getFullYear()}`;
-    
-    Alert.alert(
-      "Confirmación de Turno",
-      `Profesional: ${professional.name}\nServicio: ${selectedService.name} ($${selectedService.price})\nDía: ${formattedDate}\nHora: ${selectedSlot}`,
-      [
-        { text: "Modificar", style: "cancel" },
-        { text: "Confirmar", onPress: () => navigation.navigate("HomeCliente") }
-      ]
-    );
+    navigation.navigate("ConfirmarReserva", {
+      professional,
+      selectedService,
+      selectedDate: selectedDate.toISOString(),
+      selectedSlot
+    });
   };
 
   return (
