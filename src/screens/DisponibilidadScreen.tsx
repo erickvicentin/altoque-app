@@ -53,14 +53,43 @@ export default function DisponibilidadScreen() {
     }
   }, [professional]);
 
+  const [busySlots, setBusySlots] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   useEffect(() => {
     if (selectedDate) {
+      fetchBusySlots(selectedDate);
+    } else {
+      setBusySlots([]);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (selectedDate && selectedService) {
       generateTimeSlots();
     } else {
       setAvailableSlots([]);
       setSelectedSlot(null);
     }
-  }, [selectedDate, selectedService]);
+  }, [selectedDate, selectedService, busySlots]);
+
+  const fetchBusySlots = async (date: Date) => {
+    setLoadingSlots(true);
+    try {
+      const profileId = professional.professional_profile_id || professional.id;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      const response = await api.get(`/professionals/${profileId}/busy-slots?date=${formattedDate}`);
+      setBusySlots(response.data);
+    } catch (error) {
+      console.error("Error fetching busy slots:", error);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
 
   const fetchServices = async () => {
     setLoadingServices(true);
@@ -192,7 +221,26 @@ export default function DisponibilidadScreen() {
       addSlotsForRange(open2, close2);
     }
 
-    setAvailableSlots(slots);
+    const toMin = (timeStr: string) => {
+      const clean = timeStr.replace(' hs', '').trim();
+      const [h, m] = clean.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const duration = selectedService.duration_minutes;
+
+    const filteredSlots = slots.filter((slot) => {
+      const slotStart = toMin(slot);
+      const slotEnd = slotStart + duration;
+
+      return !busySlots.some((busy) => {
+        const busyStart = toMin(busy.start_time);
+        const busyEnd = toMin(busy.end_time);
+        return slotStart < busyEnd && slotEnd > busyStart;
+      });
+    });
+
+    setAvailableSlots(filteredSlots);
     setSelectedSlot(null); // Reset selected slot
   };
 
@@ -424,7 +472,9 @@ export default function DisponibilidadScreen() {
         {selectedDate && (
           <View style={styles.formSection}>
             <Text style={styles.formLabel}>Horarios disponibles</Text>
-            {availableSlots.length === 0 ? (
+            {loadingSlots ? (
+              <ActivityIndicator size="small" color="#008560" style={{ padding: 24 }} />
+            ) : availableSlots.length === 0 ? (
               <View style={styles.noServicesCard}>
                 <Text style={styles.noServicesText}>
                   No hay horarios disponibles para el servicio de {selectedService?.duration_minutes} min en este día.

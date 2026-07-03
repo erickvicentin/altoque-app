@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import api from "../services/api";
 
 const DAYS_OF_WEEK = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MONTH_NAMES = [
@@ -34,14 +35,39 @@ export default function ConfirmarReservaScreen() {
     return `${dayName}, ${dayNumber} de ${monthName}`;
   };
 
-  const handleConfirmar = () => {
-    Alert.alert(
-      "¡Reserva Exitosa!",
-      "Tu turno ha sido reservado de forma correcta. Te esperamos.",
-      [
-        { text: "Aceptar", onPress: () => navigation.navigate("HomeCliente") }
-      ]
-    );
+  const handleConfirmar = async () => {
+    try {
+      const profileId = professional.professional_profile_id || professional.id;
+      const dateObj = new Date(selectedDate);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+
+      const cleanSlot = selectedSlot.replace(' hs', '').trim();
+
+      const payload = {
+        professional_profile_id: profileId,
+        service_id: selectedService.id,
+        date: formattedDate,
+        start_time: cleanSlot,
+        notes: "Reserva realizada desde la app alToque.",
+      };
+
+      await api.post("/appointments", payload);
+
+      Alert.alert(
+        "¡Reserva Exitosa!",
+        "Tu turno ha sido reservado de forma correcta y está en espera de confirmación.",
+        [
+          { text: "Aceptar", onPress: () => navigation.navigate("HomeCliente") }
+        ]
+      );
+    } catch (error: any) {
+      console.error("Error booking appointment:", error);
+      const errorMsg = error.response?.data?.message || "No se pudo concretar la reserva del turno.";
+      Alert.alert("Error", errorMsg);
+    }
   };
 
   const handleCancelar = () => {
