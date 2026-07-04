@@ -10,10 +10,12 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import api from "../services/api";
 
 interface ProfileScreenProps {
@@ -25,12 +27,123 @@ interface ProfileScreenProps {
 export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileScreenProps) {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      Alert.alert(
+        "Permiso requerido",
+        "Se necesitan permisos de acceso a la galería para cambiar la foto de perfil."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selectedImage = result.assets[0];
+    await uploadAvatar(selectedImage.uri);
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      const uriParts = uri.split('/');
+      const fileName = uriParts[uriParts.length - 1];
+
+      formData.append("avatar", {
+        uri: Platform.OS === "ios" ? uri.replace("file://", "") : uri,
+        name: fileName || "avatar.jpg",
+        type: "image/jpeg",
+      } as any);
+
+      const response = await api.post("/profile/avatar", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      onUpdateUser(response.data.user);
+      Alert.alert("Éxito", "Foto de perfil actualizada con éxito.");
+    } catch (error: any) {
+      console.log("Error uploading avatar:", error);
+      const errorMsg = error.response?.data?.message || "No se pudo subir la foto de perfil.";
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAvatarPress = () => {
+    if (user.avatar_url) {
+      Alert.alert(
+        "Foto de perfil",
+        "¿Qué deseas hacer con tu foto de perfil?",
+        [
+          {
+            text: "Elegir de la galería",
+            onPress: handlePickImage,
+          },
+          {
+            text: "Eliminar foto",
+            onPress: confirmDeleteAvatar,
+            style: "destructive",
+          },
+          {
+            text: "Cancelar",
+            style: "cancel",
+          },
+        ]
+      );
+    } else {
+      handlePickImage();
+    }
+  };
+
+  const confirmDeleteAvatar = () => {
+    Alert.alert(
+      "Eliminar foto",
+      "¿Estás seguro de que querés eliminar tu foto de perfil?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Eliminar", style: "destructive", onPress: deleteAvatar },
+      ]
+    );
+  };
+
+  const deleteAvatar = async () => {
+    setUploading(true);
+    try {
+      const response = await api.delete("/profile/avatar");
+      onUpdateUser(response.data.user);
+      Alert.alert("Éxito", "Foto de perfil eliminada correctamente.");
+    } catch (error: any) {
+      console.log("Error deleting avatar:", error);
+      const errorMsg = error.response?.data?.message || "No se pudo eliminar la foto de perfil.";
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Modales
   const [personalDataModalVisible, setPersonalDataModalVisible] = useState(false);
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [bioModalVisible, setBioModalVisible] = useState(false);
+  const [bio, setBio] = useState(user.professional_profile?.bio || "");
 
   // Selector states
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -86,6 +199,7 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
           ? (fieldsToUpdate.address_line ?? (user.addresses && user.addresses.length > 0 ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line) : undefined)) 
           : undefined,
         shop_address: user.role === "professional" ? (fieldsToUpdate.shop_address ?? user.professional_profile?.shop_address) : undefined,
+        bio: user.role === "professional" ? (fieldsToUpdate.bio ?? user.professional_profile?.bio) : undefined,
       };
 
       const response = await api.put("/profile", payload);
@@ -103,7 +217,11 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
         ...user,
         ...fieldsToUpdate,
         address: user.role === "client" ? { ...user.address, address_line: fieldsToUpdate.address_line ?? user.address?.address_line } : undefined,
-        professional_profile: user.role === "professional" ? { ...user.professional_profile, shop_address: fieldsToUpdate.shop_address ?? user.professional_profile?.shop_address } : undefined,
+        professional_profile: user.role === "professional" ? { 
+          ...user.professional_profile, 
+          shop_address: fieldsToUpdate.shop_address ?? user.professional_profile?.shop_address,
+          bio: fieldsToUpdate.bio ?? user.professional_profile?.bio
+        } : undefined,
       };
       onUpdateUser(fallbackUser);
     } finally {
@@ -160,6 +278,20 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
     setAddressModalVisible(false);
   };
 
+  const saveBio = () => {
+    if (bio.length > 240) {
+      Alert.alert("Error", "El resumen profesional no puede superar los 240 caracteres.");
+      return;
+    }
+    handleUpdate({ bio });
+    setBioModalVisible(false);
+  };
+
+  const openBioModal = () => {
+    setBio(user.professional_profile?.bio || "");
+    setBioModalVisible(true);
+  };
+
   const selectGender = (selectedGender: string) => {
     setGender(selectedGender);
   };
@@ -200,14 +332,32 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Mi Perfil</Text>
-
       {/* Avatar Section */}
       <View style={styles.avatarSection}>
-        <View style={[styles.avatarWrapper, styles.avatarPlaceholder]}>
-          <MaterialIcons name="person" size={80} color="#00694c" />
-        </View>
-        <TouchableOpacity style={styles.uploadBadge} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.avatarWrapper}
+          onPress={handleAvatarPress}
+          activeOpacity={0.8}
+          disabled={uploading}
+        >
+          {uploading ? (
+            <View style={[styles.avatarWrapper, styles.avatarPlaceholder, { borderWidth: 0 }]}>
+              <ActivityIndicator size="large" color="#00694c" />
+            </View>
+          ) : user.avatar_url ? (
+            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatarWrapper, styles.avatarPlaceholder, { borderWidth: 0 }]}>
+              <MaterialIcons name="person" size={80} color="#00694c" />
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.uploadBadge}
+          onPress={handleAvatarPress}
+          activeOpacity={0.7}
+          disabled={uploading}
+        >
           <MaterialIcons name="arrow-upward" size={18} color="#00694c" />
         </TouchableOpacity>
       </View>
@@ -273,11 +423,25 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
                 ? (user.addresses && user.addresses.length > 0
                   ? (user.addresses.find((addr: any) => addr.is_default)?.address_line || user.addresses[0].address_line)
                   : "No especificado")
-                : (user.professional_profile?.shop_address || "Dirección de atención deshabilitada.")}
+                : (user.professional_profile?.shop_address || "Dirección de atención deshabilitada")}
             </Text>
           </View>
           <MaterialIcons name="chevron-right" size={24} color="#3d4943" />
         </TouchableOpacity>
+
+        {/* Row 5: Resumen profesional (solo profesional) */}
+        {user.role === "professional" && (
+          <View style={styles.settingsRow}>
+            <MaterialIcons name="description" size={24} color="#3d4943" style={styles.rowIcon} />
+            <View style={styles.rowContent}>
+              <Text style={styles.rowTitle}>Resumen profesional</Text>
+              <Text style={styles.rowSubtitle} numberOfLines={1}>Contales a tus clientes sobre vos</Text>
+            </View>
+            <TouchableOpacity style={styles.editButton} onPress={openBioModal}>
+              <Text style={styles.editButtonText}>Editar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Logout button row */}
@@ -516,6 +680,53 @@ export default function ProfileScreen({ user, onUpdateUser, onLogout }: ProfileS
           </View>
         </View>
       </Modal>
+
+      {/* --- MODAL RESUMEN PROFESIONAL --- */}
+      <Modal
+        visible={bioModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setBioModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Resumen Profesional</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Sobre mí</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={bio}
+                onChangeText={(text) => {
+                  if (text.length <= 240) {
+                    setBio(text);
+                  }
+                }}
+                multiline={true}
+                numberOfLines={4}
+                maxLength={240}
+                placeholder="Contá sobre tu experiencia, especialidad o servicios..."
+                placeholderTextColor="#bccac1"
+              />
+              <Text style={styles.charCountText}>
+                {240 - bio.length} caracteres restantes
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setBioModalVisible(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveButton} onPress={saveBio}>
+                <Text style={styles.modalSaveButtonText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -707,6 +918,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#181c1c",
     backgroundColor: "#f7faf8",
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
+  charCountText: {
+    fontSize: 12,
+    color: '#707d76',
+    textAlign: 'right',
+    marginTop: 4,
   },
   genderOptions: {
     flexDirection: "row",
