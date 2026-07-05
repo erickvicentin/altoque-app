@@ -68,7 +68,7 @@ export default function ProfessionalAppointmentsScreen() {
   const getFilteredAppointments = () => {
     let filtered = [];
     if (activeFilter === "accepted") {
-      filtered = appointments.filter((app) => app.status === "accepted");
+      filtered = appointments.filter((app) => app.status === "accepted" || app.status === "blocked");
       // Sort upcoming first
       filtered.sort((a, b) => {
         const dateA = new Date(`${a.date}T${a.start_time}`);
@@ -114,6 +114,8 @@ export default function ProfessionalAppointmentsScreen() {
         return "Confirmado";
       case "pending":
         return "Espera de confirmación";
+      case "blocked":
+        return "Bloqueado / Externo";
       default:
         return status;
     }
@@ -130,6 +132,8 @@ export default function ProfessionalAppointmentsScreen() {
         return { text: "#00694c", bg: "#c2f0d9", border: "#a7f3d0" };
       case "pending":
         return { text: "#d97706", bg: "#fffbeb", border: "#fef3c7" };
+      case "blocked":
+        return { text: "#3d4943", bg: "#e2eae7", border: "#bccac1" };
       default:
         return { text: "#3d4943", bg: "#f1f4f2", border: "#e6e9e7" };
     }
@@ -210,6 +214,15 @@ export default function ProfessionalAppointmentsScreen() {
               const service = item.service || {};
               const statusStyle = getStatusColor(item.status);
 
+              const parseExternalClientName = (notes?: string) => {
+                if (!notes) return null;
+                const nameMatch = notes.match(/Cliente externo:\s*(.*)/);
+                return nameMatch ? nameMatch[1].trim() : null;
+              };
+
+              const externalName = item.status === "blocked" ? parseExternalClientName(item.notes) : null;
+              const displayName = externalName || `${clientUser.name || ""} ${clientUser.last_name || ""}`.trim() || "Cliente";
+
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -229,7 +242,7 @@ export default function ProfessionalAppointmentsScreen() {
 
                   <View style={styles.infoContainer}>
                     <Text style={styles.serviceName}>{service.name || "Servicio"}</Text>
-                    <Text style={styles.clientName}>Cliente: {`${clientUser.name || ""} ${clientUser.last_name || ""}`.trim() || "Cliente"}</Text>
+                    <Text style={styles.clientName}>Cliente: {displayName}</Text>
                     
                     <View style={styles.timeRow}>
                       <MaterialIcons

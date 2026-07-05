@@ -91,6 +91,8 @@ export default function DailyAppointmentsScreen() {
         return "Confirmado";
       case "pending":
         return "Espera de confirmación";
+      case "blocked":
+        return "Bloqueado / Externo";
       default:
         return status;
     }
@@ -107,6 +109,8 @@ export default function DailyAppointmentsScreen() {
         return { text: "#00694c", bg: "#c2f0d9", border: "#a7f3d0" };
       case "pending":
         return { text: "#d97706", bg: "#fffbeb", border: "#fef3c7" };
+      case "blocked":
+        return { text: "#3d4943", bg: "#e2eae7", border: "#bccac1" };
       default:
         return { text: "#3d4943", bg: "#f1f4f2", border: "#e6e9e7" };
     }
@@ -159,6 +163,15 @@ export default function DailyAppointmentsScreen() {
               const cleanStartTime = item.start_time.substring(0, 5);
               const cleanEndTime = item.end_time.substring(0, 5);
 
+              const parseExternalClientName = (notes?: string) => {
+                if (!notes) return null;
+                const nameMatch = notes.match(/Cliente externo:\s*(.*)/);
+                return nameMatch ? nameMatch[1].trim() : null;
+              };
+
+              const externalName = item.status === "blocked" ? parseExternalClientName(item.notes) : null;
+              const displayName = externalName || `${clientUser.name || ""} ${clientUser.last_name || ""}`.trim() || "Cliente";
+
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -188,7 +201,7 @@ export default function DailyAppointmentsScreen() {
                         </View>
                       )}
                       <Text style={styles.clientName} numberOfLines={1}>
-                        {`${clientUser.name || ""} ${clientUser.last_name || ""}`.trim() || "Cliente"}
+                        {displayName}
                       </Text>
                     </View>
 
