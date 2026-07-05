@@ -7,7 +7,6 @@ import ProfileScreen from "./ProfileScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
 import ExploreTab from "../components/ExploreTab";
 import api from "../services/api";
-import * as Notifications from "expo-notifications";
 import { getStorageItem } from "../services/storage";
 
 export default function HomeCliente({ route, navigation }: any) {
@@ -24,21 +23,7 @@ export default function HomeCliente({ route, navigation }: any) {
   const [knownStatuses, setKnownStatuses] = useState<Record<number, string>>({});
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Solicitar permisos de notificación nativa al montar
-  useEffect(() => {
-    const requestNotificationPermissions = async () => {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== "granted") {
-        console.warn("Notification permissions not granted!");
-      }
-    };
-    requestNotificationPermissions();
-  }, []);
+
 
   const checkClientNotifications = async (isPoll = false) => {
     try {
@@ -74,14 +59,8 @@ export default function HomeCliente({ route, navigation }: any) {
             const serviceName = app.service?.name || "Servicio";
             const statusText = newStatus === "accepted" ? "confirmado" : "rechazado";
             
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: `Turno ${statusText === "confirmado" ? "Confirmado 📅" : "Rechazado ❌"}`,
-                body: `Tu turno para ${serviceName} con ${profName} fue ${statusText}.`,
-                sound: true,
-              },
-              trigger: null,
-            });
+            // No native notification to avoid emulator crash, dot update is enough
+            console.log(`Turno ${statusText}: Tu turno para ${serviceName} con ${profName} fue ${statusText}.`);
           }
         }
       }

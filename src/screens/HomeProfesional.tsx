@@ -7,18 +7,7 @@ import ProfileScreen from "./ProfileScreen";
 import ServicesScreen from "./ServicesScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
 import api from "../services/api";
-import * as Notifications from "expo-notifications";
 
-// Configurar cómo se manejan las notificaciones cuando la app está abierta
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 
 export default function HomeProfesional({ route, navigation }: any) {
   const { user: initialUser } = route.params || {};
@@ -30,21 +19,7 @@ export default function HomeProfesional({ route, navigation }: any) {
   const [knownPendingIds, setKnownPendingIds] = useState<number[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Solicitar permisos de notificación nativa al montar el componente
-  useEffect(() => {
-    const requestNotificationPermissions = async () => {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== "granted") {
-        console.warn("Notification permissions not granted!");
-      }
-    };
-    requestNotificationPermissions();
-  }, []);
+
 
   const TABS_NAMES: Record<string, string> = {
     "negocio": "Mi negocio",
@@ -67,14 +42,8 @@ export default function HomeProfesional({ route, navigation }: any) {
         const newRequests = pendingIds.filter((id: number) => !knownPendingIds.includes(id));
         if (newRequests.length > 0) {
           // Disparar notificación nativa del teléfono (OS Banner)
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: "Nueva Solicitud de Turno 📅",
-              body: "Tenés una nueva solicitud de turno pendiente de revisión en Novedades.",
-              sound: true,
-            },
-            trigger: null,
-          });
+          // No native notification to avoid emulator crash, dot update is enough
+          console.log("Nueva Solicitud de Turno: Tenés una nueva solicitud de turno pendiente de revisión en Novedades.");
         }
       }
 
