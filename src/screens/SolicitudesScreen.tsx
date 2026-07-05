@@ -12,10 +12,12 @@ import {
   Modal,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import api from "../services/api";
+import { getStorageItem, setStorageItem } from "../services/storage";
 
 interface ProfessionalRequest {
   id: string;
@@ -45,35 +47,10 @@ export default function SolicitudesScreen() {
   // State para solicitudes del profesional
   const [requests, setRequests] = useState<ProfessionalRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // State para notificaciones del cliente
-  const [notifications, setNotifications] = useState<ClientNotification[]>([
-    {
-      id: "1",
-      professionalName: "Fran Perez",
-      serviceName: "Corte Clásico",
-      timeText: "Hoy, 10:30 hs",
-      status: "accepted",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuBDyBj5TaecCAsFprwmZlD-c_anCrDnZEWxM-CqeCMhA1JvXkvukrUqERYryCCSqSydbCIU0NH8dXPKIGdjvDTfB_At78BYA1ZVbCJ0x1bA9m0fW7rMiCPaUAnqPvcKIDbntAyB6sWlCy_DQfrB_AoAtmqX22s3e57HPvE2ZvsfIe_5DersGjw4_gqTGkzD2YejCuzqaRBsR2LRfbtw6kHYZ0hxg5q0pAgVFmbPfYC8OBJZq4YBBEPUidEZ5qvi03mG7oiXQrsnVA",
-    },
-    {
-      id: "2",
-      professionalName: "Ana Silva",
-      serviceName: "Clase de Pilates",
-      timeText: "Ayer, 18:00 hs",
-      status: "rejected",
-      imageUrl: "https://i.pravatar.cc/150?img=5",
-    },
-    {
-      id: "3",
-      professionalName: "Carlos Gomez",
-      serviceName: "Instalación de Aire",
-      timeText: "Hace 2 días",
-      status: "accepted",
-      imageUrl: "https://i.pravatar.cc/150?img=33",
-    },
-  ]);
+  const [notifications, setNotifications] = useState<ClientNotification[]>([]);
 
   // States para el Modal de Confirmación
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
@@ -102,42 +79,79 @@ export default function SolicitudesScreen() {
     }
   };
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (showLoadingIndicator = true) => {
     try {
-      setLoading(true);
+      if (showLoadingIndicator) {
+        setLoading(true);
+      }
       const response = await api.get("/appointments");
       const list = response.data || [];
-      // Filtrar solo los turnos pendientes
-      const pendingAppointments = list.filter((app: any) => app.status === "pending");
 
-      const mappedRequests: ProfessionalRequest[] = pendingAppointments.map((app: any) => {
-        const client = app.client || {};
-        const service = app.service || {};
-        return {
-          id: app.id.toString(),
-          clientName: `${client.name || ""} ${client.last_name || ""}`.trim() || "Cliente",
-          serviceName: service.name || "Servicio",
-          timeText: formatDateTime(app.date, app.start_time),
-          imageUrl: client.avatar_url || undefined,
-        };
-      });
+      if (isProfessional) {
+        // Filtrar solo los turnos pendientes para el profesional
+        const pendingAppointments = list.filter((app: any) => app.status === "pending");
 
-      setRequests(mappedRequests);
+        const mappedRequests: ProfessionalRequest[] = pendingAppointments.map((app: any) => {
+          const client = app.client || {};
+          const service = app.service || {};
+          return {
+            id: app.id.toString(),
+            clientName: `${client.name || ""} ${client.last_name || ""}`.trim() || "Cliente",
+            serviceName: service.name || "Servicio",
+            timeText: formatDateTime(app.date, app.start_time),
+            imageUrl: client.avatar_url || undefined,
+          };
+        });
+
+        setRequests(mappedRequests);
+      } else {
+        // Para el cliente: Cargar los IDs de notificaciones ya descartadas de AsyncStorage
+        const dismissedVal = await getStorageItem("dismissed_notification_ids");
+        const dismissedIds: number[] = dismissedVal ? JSON.parse(dismissedVal) : [];
+
+        // Filtrar turnos del cliente que estén aceptados o rechazados y que NO hayan sido descartados
+        const clientNotifications = list.filter(
+          (app: any) =>
+            (app.status === "accepted" || app.status === "rejected") &&
+            !dismissedIds.includes(app.id)
+        );
+
+        const mappedNotifications: ClientNotification[] = clientNotifications.map((app: any) => {
+          const profUser = app.professional_profile?.user || {};
+          const service = app.service || {};
+          return {
+            id: app.id.toString(),
+            professionalName: profUser.name || "Profesional",
+            serviceName: service.name || "Servicio",
+            timeText: formatDateTime(app.date, app.start_time),
+            status: app.status,
+            imageUrl: profUser.avatar_url || undefined,
+          };
+        });
+
+        setNotifications(mappedNotifications);
+      }
     } catch (error) {
-      console.error("Error fetching professional requests:", error);
-      Alert.alert("Error", "No se pudieron cargar las solicitudes pendientes.");
+      console.error("Error fetching professional requests or client notifications:", error);
+      Alert.alert("Error", "No se pudieron cargar las novedades.");
     } finally {
-      setLoading(false);
+      if (showLoadingIndicator) {
+        setLoading(false);
+      }
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      if (isProfessional) {
-        fetchRequests();
-      }
+      fetchRequests(true);
     }, [isProfessional])
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchRequests(false);
+    setRefreshing(false);
+  }, [isProfessional]);
 
   // Manejadores para profesional
   const triggerAcceptConfirm = (request: ProfessionalRequest) => {
@@ -197,8 +211,19 @@ export default function SolicitudesScreen() {
   };
 
   // Manejadores para cliente
-  const handleDismissNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+  const handleDismissNotification = async (id: string) => {
+    try {
+      const dismissedVal = await getStorageItem("dismissed_notification_ids");
+      const dismissedIds: number[] = dismissedVal ? JSON.parse(dismissedVal) : [];
+      const numericId = parseInt(id, 10);
+      if (!dismissedIds.includes(numericId)) {
+        dismissedIds.push(numericId);
+        await setStorageItem("dismissed_notification_ids", JSON.stringify(dismissedIds));
+      }
+      setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+    } catch (error) {
+      console.error("Error dismissing notification:", error);
+    }
   };
 
   return (
@@ -222,6 +247,16 @@ export default function SolicitudesScreen() {
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={true}
+        overScrollMode="always"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#00694c"]}
+            tintColor="#00694c"
+          />
+        }
       >
         {loading ? (
           <ActivityIndicator size="large" color="#00694c" style={{ marginTop: 40 }} />
