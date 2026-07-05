@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,9 +11,13 @@ import {
   Alert,
   Modal,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import api from "../services/api";
+import { getStorageItem, setStorageItem } from "../services/storage";
 
 interface ProfessionalRequest {
   id: string;
@@ -41,71 +45,113 @@ export default function SolicitudesScreen() {
   const isProfessional = user.role !== "client";
 
   // State para solicitudes del profesional
-  const [requests, setRequests] = useState<ProfessionalRequest[]>([
-    {
-      id: "1",
-      clientName: "Martín C.",
-      serviceName: "Corte Clásico + Barba",
-      timeText: "Hoy, 14:30 hs",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuBJooX12ebFwtBeLmu7KXWMjPvUu5Zj8av5otzrceRhKd2u8npF5phe1KqKx7a1H7dhqlJVL9gZc_GwtZgO4Dy7vsKLwFNPg5zqXeBALyJXL_sDN966ngOQZOlYSo6hJSvcscawTioP5zmaqBppn68KGCwu38GmkvroguQ68oZXkKO_mDUWWN2lA7afLdnfVqV7su7UE_fVHjsZTTJ5cj3LB_klpMT0beBm4_iI99ekY0zy1naIQJcRE_mw79Clr-Lz384RCb2Ttw",
-    },
-    {
-      id: "2",
-      clientName: "Luciana R.",
-      serviceName: "Perfilado de Cejas",
-      timeText: "Mañana, 10:00 hs",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuDa1_A5HNZAK_ehbDXqr-US4hzRbxpUrEZTmpSpyLVDN_Cknau4gkrZHSHenhCCGSvhvaZ_twZZEPGjukHu9opyKEki2ae_bGBzzYyYxXKpxzMfFMmSRgNCw1UPdnrK7hjltau9JiAGhCGKA0Ys5eVL1OMYM72LM9kiVSC8yqrXlaLiraNwFDvw8xUgSW-5bpYjhJ5XiGm6Bfxdb7Rr6pvSKSD8OF2wUHCUP8CrHthjjSs3yllNQn60BKm8ko8_b42J8PHh-pxtmA",
-    },
-    {
-      id: "3",
-      clientName: "Tomás V.",
-      serviceName: "Corte Moderno",
-      timeText: "Jueves, 18:15 hs",
-    },
-    {
-      id: "4",
-      clientName: "Javier M.",
-      serviceName: "Lavado y Peinado",
-      timeText: "Viernes, 09:30 hs",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuDmE5EfqNYXvbq36Fu1m1ED8AgwSqBMxjbKTeESfXpn6S_sMWkheEGNaknb9aD8EhBhn71QCUG5Uf1HVebaDumaLmgxnsCPAfYskGP0kelBuabmmFyxzgsRRhXLX03CKjmi9b341i47t2NK1Fnrx3DS0AR3PqOXDGqkPOf7Ngiujvh90DXahHcdNZoK-MXXeusDIDbiyM-9s8ksyGsCne3t-3tWWcim6qXiiGx4SqfbWogte-xIICbKEyoLbmF62EPUopZsfG3lCg",
-    },
-  ]);
+  const [requests, setRequests] = useState<ProfessionalRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // State para notificaciones del cliente
-  const [notifications, setNotifications] = useState<ClientNotification[]>([
-    {
-      id: "1",
-      professionalName: "Fran Perez",
-      serviceName: "Corte Clásico",
-      timeText: "Hoy, 10:30 hs",
-      status: "accepted",
-      imageUrl:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuBDyBj5TaecCAsFprwmZlD-c_anCrDnZEWxM-CqeCMhA1JvXkvukrUqERYryCCSqSydbCIU0NH8dXPKIGdjvDTfB_At78BYA1ZVbCJ0x1bA9m0fW7rMiCPaUAnqPvcKIDbntAyB6sWlCy_DQfrB_AoAtmqX22s3e57HPvE2ZvsfIe_5DersGjw4_gqTGkzD2YejCuzqaRBsR2LRfbtw6kHYZ0hxg5q0pAgVFmbPfYC8OBJZq4YBBEPUidEZ5qvi03mG7oiXQrsnVA",
-    },
-    {
-      id: "2",
-      professionalName: "Ana Silva",
-      serviceName: "Clase de Pilates",
-      timeText: "Ayer, 18:00 hs",
-      status: "rejected",
-      imageUrl: "https://i.pravatar.cc/150?img=5",
-    },
-    {
-      id: "3",
-      professionalName: "Carlos Gomez",
-      serviceName: "Instalación de Aire",
-      timeText: "Hace 2 días",
-      status: "accepted",
-      imageUrl: "https://i.pravatar.cc/150?img=33",
-    },
-  ]);
+  const [notifications, setNotifications] = useState<ClientNotification[]>([]);
 
   // States para el Modal de Confirmación
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ProfessionalRequest | null>(null);
+
+  const formatDateTime = (dateStr: string, timeStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const date = new Date(year, month, day);
+
+      const DAYS_OF_WEEK = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const MONTH_NAMES = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+      ];
+      const dayName = DAYS_OF_WEEK[date.getDay()];
+      const monthName = MONTH_NAMES[date.getMonth()];
+      const cleanTime = timeStr.substring(0, 5);
+
+      return `${dayName}, ${day} de ${monthName} - ${cleanTime} hs`;
+    } catch (e) {
+      return `${dateStr} a las ${timeStr}`;
+    }
+  };
+
+  const fetchRequests = async (showLoadingIndicator = true) => {
+    try {
+      if (showLoadingIndicator) {
+        setLoading(true);
+      }
+      const response = await api.get("/appointments");
+      const list = response.data || [];
+
+      if (isProfessional) {
+        // Filtrar solo los turnos pendientes para el profesional
+        const pendingAppointments = list.filter((app: any) => app.status === "pending");
+
+        const mappedRequests: ProfessionalRequest[] = pendingAppointments.map((app: any) => {
+          const client = app.client || {};
+          const service = app.service || {};
+          return {
+            id: app.id.toString(),
+            clientName: `${client.name || ""} ${client.last_name || ""}`.trim() || "Cliente",
+            serviceName: service.name || "Servicio",
+            timeText: formatDateTime(app.date, app.start_time),
+            imageUrl: client.avatar_url || undefined,
+          };
+        });
+
+        setRequests(mappedRequests);
+      } else {
+        // Para el cliente: Cargar los IDs de notificaciones ya descartadas de AsyncStorage
+        const dismissedVal = await getStorageItem("dismissed_notification_ids");
+        const dismissedIds: number[] = dismissedVal ? JSON.parse(dismissedVal) : [];
+
+        // Filtrar turnos del cliente que estén aceptados o rechazados y que NO hayan sido descartados
+        const clientNotifications = list.filter(
+          (app: any) =>
+            (app.status === "accepted" || app.status === "rejected") &&
+            !dismissedIds.includes(app.id)
+        );
+
+        const mappedNotifications: ClientNotification[] = clientNotifications.map((app: any) => {
+          const profUser = app.professional_profile?.user || {};
+          const service = app.service || {};
+          return {
+            id: app.id.toString(),
+            professionalName: profUser.name || "Profesional",
+            serviceName: service.name || "Servicio",
+            timeText: formatDateTime(app.date, app.start_time),
+            status: app.status,
+            imageUrl: profUser.avatar_url || undefined,
+          };
+        });
+
+        setNotifications(mappedNotifications);
+      }
+    } catch (error) {
+      console.error("Error fetching professional requests or client notifications:", error);
+      Alert.alert("Error", "No se pudieron cargar las novedades.");
+    } finally {
+      if (showLoadingIndicator) {
+        setLoading(false);
+      }
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchRequests(true);
+    }, [isProfessional])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchRequests(false);
+    setRefreshing(false);
+  }, [isProfessional]);
 
   // Manejadores para profesional
   const triggerAcceptConfirm = (request: ProfessionalRequest) => {
@@ -113,23 +159,71 @@ export default function SolicitudesScreen() {
     setConfirmModalVisible(true);
   };
 
-  const handleAcceptRequest = () => {
+  const handleAcceptRequest = async () => {
     if (selectedRequest) {
-      Alert.alert("Solicitud Aceptada", `Has aceptado el turno de ${selectedRequest.clientName}.`);
-      setRequests((prev) => prev.filter((req) => req.id !== selectedRequest.id));
-      setConfirmModalVisible(false);
-      setSelectedRequest(null);
+      try {
+        setConfirmModalVisible(false);
+        setLoading(true);
+        await api.patch(`/appointments/${selectedRequest.id}/status`, {
+          status: "accepted",
+        });
+        Alert.alert("Solicitud Aceptada", `Has aceptado el turno de ${selectedRequest.clientName}.`);
+        setSelectedRequest(null);
+        fetchRequests();
+      } catch (error: any) {
+        console.error("Error accepting request:", error);
+        const msg = error.response?.data?.message || "No se pudo aceptar la solicitud.";
+        Alert.alert("Error", msg);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handleRejectRequest = (id: string, name: string) => {
-    Alert.alert("Solicitud Rechazada", `Has rechazado el turno de ${name}.`);
-    setRequests((prev) => prev.filter((req) => req.id !== id));
+  const handleRejectRequest = async (id: string, name: string) => {
+    Alert.alert(
+      "Rechazar Solicitud",
+      `¿Estás seguro de que deseas rechazar el turno de ${name}?`,
+      [
+        { text: "Volver Atrás", style: "cancel" },
+        {
+          text: "Confirmar Rechazo",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await api.patch(`/appointments/${id}/status`, {
+                status: "rejected",
+              });
+              Alert.alert("Solicitud Rechazada", `Has rechazado el turno de ${name}.`);
+              fetchRequests();
+            } catch (error: any) {
+              console.error("Error rejecting request:", error);
+              const msg = error.response?.data?.message || "No se pudo rechazar la solicitud.";
+              Alert.alert("Error", msg);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Manejadores para cliente
-  const handleDismissNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+  const handleDismissNotification = async (id: string) => {
+    try {
+      const dismissedVal = await getStorageItem("dismissed_notification_ids");
+      const dismissedIds: number[] = dismissedVal ? JSON.parse(dismissedVal) : [];
+      const numericId = parseInt(id, 10);
+      if (!dismissedIds.includes(numericId)) {
+        dismissedIds.push(numericId);
+        await setStorageItem("dismissed_notification_ids", JSON.stringify(dismissedIds));
+      }
+      setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+    } catch (error) {
+      console.error("Error dismissing notification:", error);
+    }
   };
 
   return (
@@ -144,7 +238,7 @@ export default function SolicitudesScreen() {
         >
           <Feather name="arrow-left" size={24} color="#181c1c" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Solicitudes</Text>
+        <Text style={styles.headerTitle}>Novedades</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -153,8 +247,20 @@ export default function SolicitudesScreen() {
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={true}
+        overScrollMode="always"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#00694c"]}
+            tintColor="#00694c"
+          />
+        }
       >
-        {isProfessional ? (
+        {loading ? (
+          <ActivityIndicator size="large" color="#00694c" style={{ marginTop: 40 }} />
+        ) : isProfessional ? (
           // Vista del Profesional
           <View style={styles.listContainer}>
             {requests.length === 0 ? (
@@ -165,7 +271,14 @@ export default function SolicitudesScreen() {
             ) : (
               requests.map((item) => (
                 <View key={item.id} style={styles.card}>
-                  <View style={styles.cardLeft}>
+                  <TouchableOpacity
+                    style={styles.cardLeft}
+                    onPress={() =>
+                      navigation.navigate("TurnoDetail", {
+                        appointmentId: item.id,
+                      })
+                    }
+                  >
                     <View style={styles.avatarContainer}>
                       {item.imageUrl ? (
                         <Image source={{ uri: item.imageUrl }} style={styles.avatar} />
@@ -180,7 +293,7 @@ export default function SolicitudesScreen() {
                       </Text>
                       <Text style={styles.timeText}>{item.timeText}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
 
                   <View style={styles.actionsContainer}>
                     <TouchableOpacity
@@ -326,8 +439,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 24,
+    fontWeight: "700",
     color: "#181c1c",
     textAlign: "center",
     flex: 1,

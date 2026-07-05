@@ -22,7 +22,7 @@ export default function ExploreTab() {
       const upcoming = list.filter(
         (app: any) => app.status === 'pending' || app.status === 'accepted'
       );
-      
+
       upcoming.sort((a: any, b: any) => {
         const dateA = new Date(`${a.date}T${a.start_time}`);
         const dateB = new Date(`${b.date}T${b.start_time}`);
@@ -71,24 +71,23 @@ export default function ExploreTab() {
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Feather name="search" size={20} color="#a0aab2" style={styles.searchIcon} />
-        <TextInput 
+        <TextInput
           style={styles.searchInput}
-          placeholder="Buscar peluquería, plomero..."
+          placeholder="Busca a tu profesional favorito"
           placeholderTextColor="#a0aab2"
           value={searchText}
           onChangeText={setSearchText}
           onSubmitEditing={handleSearch}
         />
         <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-          <Text style={styles.searchButtonText}>Buscar</Text>
+          <Feather name="search" size={20} color="#a0aab2" style={styles.searchIcon} />
         </TouchableOpacity>
       </View>
 
       {/* Categories */}
       <Text style={styles.sectionTitle}>Categorías principales</Text>
       <View style={styles.categoriesGrid}>
-        
+
         {/* Category 1 */}
         <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress('Barbería')}>
           <View style={[styles.iconCircle, { backgroundColor: '#c2f0d9' }]}>
@@ -130,7 +129,14 @@ export default function ExploreTab() {
       {/* Upcoming Appointments */}
       <Text style={styles.sectionTitle}>Próximos turnos</Text>
       {nextAppointment ? (
-        <View style={styles.appointmentCard}>
+        <TouchableOpacity
+          style={styles.appointmentCard}
+          onPress={() =>
+            navigation.navigate("TurnoDetail", {
+              appointmentId: nextAppointment.id,
+            })
+          }
+        >
           <View style={styles.appointmentHeader}>
             <View>
               <Text style={styles.appointmentTitle}>{nextAppointment.service?.name || "Servicio"}</Text>
@@ -138,26 +144,6 @@ export default function ExploreTab() {
                 con {nextAppointment.professional_profile?.user?.name || "Profesional"}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate("TurnoDetail", {
-                  appointment: {
-                    serviceName: "Corte y Barba",
-                    professionalName: "Fran Perez",
-                    day: "Viernes",
-                    date: "18 de mayo",
-                    time: "18:45",
-                    duration: "1h",
-                    price: "$4.500",
-                    location: "Av. Sarmiento 1515",
-                    imageUrl:
-                      "https://lh3.googleusercontent.com/aida-public/AB6AXuBDyBj5TaecCAsFprwmZlD-c_anCrDnZEWxM-CqeCMhA1JvXkvukrUqERYryCCSqSydbCIU0NH8dXPKIGdjvDTfB_At78BYA1ZVbCJ0x1bA9m0fW7rMiCPaUAnqPvcKIDbntAyB6sWlCy_DQfrB_AoAtmqX22s3e57HPvE2ZvsfIe_5DersGjw4_gqTGkzD2YejCuzqaRBsR2LRfbtw6kHYZ0hxg5q0pAgVFmbPfYC8OBJZq4YBBEPUidEZ5qvi03mG7oiXQrsnVA",
-                  },
-                })
-              }
-            >
-              <MaterialIcons name="more-vert" size={24} color="#3d4943" />
-            </TouchableOpacity>
           </View>
           <View style={styles.appointmentTags}>
             <View style={styles.timeTag}>
@@ -178,7 +164,7 @@ export default function ExploreTab() {
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       ) : (
         <View style={styles.noAppointmentsCard}>
           <Feather name="calendar" size={32} color="#707d76" style={{ marginBottom: 8 }} />
@@ -186,7 +172,7 @@ export default function ExploreTab() {
           <Text style={styles.noAppointmentsSubtext}>Explorá categorías para reservar uno.</Text>
         </View>
       )}
-      
+
       <TouchableOpacity
         style={styles.moreAppointmentsBtn}
         onPress={() => navigation.navigate("ClientAppointments")}
@@ -227,7 +213,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 0,
+    color: '#ffffff',
   },
   searchInput: {
     flex: 1,
@@ -237,9 +224,9 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     backgroundColor: '#008560',
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   searchButtonText: {
     color: '#ffffff',

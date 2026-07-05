@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform, ActivityIndicator, Image, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons, Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import ProfileScreen from "./ProfileScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
 import ExploreTab from "../components/ExploreTab";
 import api from "../services/api";
+import * as Notifications from "expo-notifications";
+import { getStorageItem } from "../services/storage";
 
 export default function HomeCliente({ route, navigation }: any) {
   const { user: initialUser } = route.params || {};
@@ -15,6 +18,96 @@ export default function HomeCliente({ route, navigation }: any) {
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [statusFilter, setStatusFilter] = useState("todos");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Estados para notificaciones y polling en cliente
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [knownStatuses, setKnownStatuses] = useState<Record<number, string>>({});
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Solicitar permisos de notificación nativa al montar
+  useEffect(() => {
+    const requestNotificationPermissions = async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== "granted") {
+        console.warn("Notification permissions not granted!");
+      }
+    };
+    requestNotificationPermissions();
+  }, []);
+
+  const checkClientNotifications = async (isPoll = false) => {
+    try {
+      // Cargar los IDs de notificaciones ya leídas/descartadas
+      const dismissedVal = await getStorageItem("dismissed_notification_ids");
+      const dismissedIds: number[] = dismissedVal ? JSON.parse(dismissedVal) : [];
+
+      const response = await api.get("/appointments");
+      const list = response.data || [];
+
+      // Filtrar los turnos que están aceptados o rechazados y que el cliente no haya descartado
+      const activeNotifications = list.filter(
+        (app: any) =>
+          (app.status === "accepted" || app.status === "rejected") &&
+          !dismissedIds.includes(app.id)
+      );
+
+      setHasUnreadNotifications(activeNotifications.length > 0);
+
+      // Armar el mapa de estados actuales
+      const currentStatuses: Record<number, string> = {};
+      list.forEach((app: any) => {
+        currentStatuses[app.id] = app.status;
+      });
+
+      if (isPoll && !isInitialLoad) {
+        // Buscar si algún turno cambió de estado "pending" a "accepted" o "rejected"
+        for (const app of list) {
+          const prevStatus = knownStatuses[app.id];
+          const newStatus = app.status;
+          if (prevStatus === "pending" && (newStatus === "accepted" || newStatus === "rejected")) {
+            const profName = app.professional_profile?.user?.name || "Profesional";
+            const serviceName = app.service?.name || "Servicio";
+            const statusText = newStatus === "accepted" ? "confirmado" : "rechazado";
+            
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `Turno ${statusText === "confirmado" ? "Confirmado 📅" : "Rechazado ❌"}`,
+                body: `Tu turno para ${serviceName} con ${profName} fue ${statusText}.`,
+                sound: true,
+              },
+              trigger: null,
+            });
+          }
+        }
+      }
+
+      setKnownStatuses(currentStatuses);
+      setIsInitialLoad(false);
+    } catch (error) {
+      console.error("Error checking client notifications:", error);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      // Carga inicial al entrar en foco (sin alert/push)
+      checkClientNotifications(false);
+
+      // Polling cada 10 segundos
+      const intervalId = setInterval(() => {
+        checkClientNotifications(true);
+      }, 10000);
+
+      return () => {
+        clearInterval(intervalId);
+      };
+    }, [knownStatuses, isInitialLoad])
+  );
 
   const TABS_NAMES: Record<string, string> = {
     "perfil": "Mi Perfil",
@@ -194,7 +287,15 @@ export default function HomeCliente({ route, navigation }: any) {
                   const badge = getStatusBadgeStyle(item.status);
 
                   return (
-                    <View key={item.id} style={styles.turnoCard}>
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.turnoCard}
+                      onPress={() =>
+                        navigation.navigate("TurnoDetail", {
+                          appointmentId: item.id,
+                        })
+                      }
+                    >
                       <View style={styles.turnoImageContainer}>
                         {profUser.avatar_url ? (
                           <Image source={{ uri: profUser.avatar_url }} style={styles.turnoImage} />
@@ -225,7 +326,7 @@ export default function HomeCliente({ route, navigation }: any) {
                           </Text>
                         </View>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </ScrollView>
@@ -259,7 +360,7 @@ export default function HomeCliente({ route, navigation }: any) {
         >
           <View>
             <Feather name="bell" size={24} color="#3d4943" />
-            <View style={styles.notificationDot} />
+            {hasUnreadNotifications && <View style={styles.notificationDot} />}
           </View>
         </TouchableOpacity>
       </View>

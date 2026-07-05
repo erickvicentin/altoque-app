@@ -1,20 +1,105 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import ProfileScreen from "./ProfileScreen";
 import ServicesScreen from "./ServicesScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
+import api from "../services/api";
+import * as Notifications from "expo-notifications";
+
+// Configurar cómo se manejan las notificaciones cuando la app está abierta
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 export default function HomeProfesional({ route, navigation }: any) {
   const { user: initialUser } = route.params || {};
   const [user, setUser] = useState(initialUser || { name: "Profesional", role: "professional" });
   const [activeTab, setActiveTab] = useState("negocio");
+
+  // Estados para notificaciones y polling de turnos
+  const [hasPendingRequests, setHasPendingRequests] = useState(false);
+  const [knownPendingIds, setKnownPendingIds] = useState<number[]>([]);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Solicitar permisos de notificación nativa al montar el componente
+  useEffect(() => {
+    const requestNotificationPermissions = async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== "granted") {
+        console.warn("Notification permissions not granted!");
+      }
+    };
+    requestNotificationPermissions();
+  }, []);
+
   const TABS_NAMES: Record<string, string> = {
     "negocio": "Mi negocio",
     "servicios": "Mis Servicios",
     "perfil": "Mi Perfil",
   };
+
+  const checkPendingRequests = async (isPoll = false) => {
+    try {
+      const response = await api.get("/appointments");
+      const list = response.data || [];
+      const pendingApps = list.filter((app: any) => app.status === "pending");
+      
+      const pendingIds = pendingApps.map((app: any) => app.id);
+      
+      setHasPendingRequests(pendingApps.length > 0);
+
+      if (isPoll && !isInitialLoad) {
+        // Detectar si hay IDs nuevos que no estaban en knownPendingIds
+        const newRequests = pendingIds.filter((id: number) => !knownPendingIds.includes(id));
+        if (newRequests.length > 0) {
+          // Disparar notificación nativa del teléfono (OS Banner)
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Nueva Solicitud de Turno 📅",
+              body: "Tenés una nueva solicitud de turno pendiente de revisión en Novedades.",
+              sound: true,
+            },
+            trigger: null,
+          });
+        }
+      }
+
+      setKnownPendingIds(pendingIds);
+      setIsInitialLoad(false);
+    } catch (error) {
+      console.error("Error checking pending requests:", error);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      // Carga inicial al entrar en foco (sin alert)
+      checkPendingRequests(false);
+
+      // Polling cada 10 segundos
+      const intervalId = setInterval(() => {
+        checkPendingRequests(true);
+      }, 10000);
+
+      return () => {
+        clearInterval(intervalId);
+      };
+    }, [knownPendingIds, isInitialLoad])
+  );
 
   const handleLogout = async () => {
     try {
@@ -79,7 +164,7 @@ export default function HomeProfesional({ route, navigation }: any) {
         >
           <View>
             <Feather name="bell" size={24} color="#3d4943" />
-            <View style={styles.notificationDot} />
+            {hasPendingRequests && <View style={styles.notificationDot} />}
           </View>
         </TouchableOpacity>
       </View>
@@ -140,14 +225,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#e11d48',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: "#181c1c",
-    textAlign: "center",
-    flex: 1,
-    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
-  },
   mainContent: {
     flex: 1,
   },
@@ -180,25 +257,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#3d4943",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  placeholderCard: {
-    alignItems: "center",
-    padding: 24,
-  },
-  placeholderIcon: {
-    marginBottom: 16,
-  },
-  placeholderTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#181c1c",
-    marginBottom: 8,
-  },
-  placeholderSubtitle: {
     fontSize: 16,
     color: "#3d4943",
     textAlign: "center",
