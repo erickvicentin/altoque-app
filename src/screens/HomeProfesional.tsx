@@ -352,9 +352,6 @@ export default function HomeProfesional({ route, navigation }: any) {
                 >
                   <Text style={styles.actionButtonText}>Solicitudes</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, { marginLeft: 8 }]} activeOpacity={0.7}>
-                  <Text style={styles.actionButtonText}>Ver reseñas</Text>
-                </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
