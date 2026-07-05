@@ -225,14 +225,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#e11d48',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: "#181c1c",
-    textAlign: "center",
-    flex: 1,
-    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
-  },
   mainContent: {
     flex: 1,
   },
@@ -265,25 +257,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#3d4943",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  placeholderCard: {
-    alignItems: "center",
-    padding: 24,
-  },
-  placeholderIcon: {
-    marginBottom: 16,
-  },
-  placeholderTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#181c1c",
-    marginBottom: 8,
-  },
-  placeholderSubtitle: {
     fontSize: 16,
     color: "#3d4943",
     textAlign: "center",

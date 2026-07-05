@@ -40,6 +40,13 @@ interface AppointmentData {
       phone?: string;
     };
   };
+  client?: {
+    id: number;
+    name: string;
+    last_name?: string;
+    avatar_url?: string;
+    phone?: string;
+  };
   address?: {
     id: number;
     alias: string;
@@ -53,33 +60,43 @@ export default function TurnoDetailScreen() {
   const appointmentId = route.params?.appointmentId;
 
   const [appointment, setAppointment] = useState<AppointmentData | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (appointmentId) {
-      fetchAppointmentDetail();
+      fetchProfileAndDetails();
     } else {
       setLoading(false);
     }
   }, [appointmentId]);
 
-  const fetchAppointmentDetail = async () => {
+  const fetchProfileAndDetails = async () => {
     try {
       setLoading(true);
+      const profileRes = await api.get("/profile");
+      setCurrentUser(profileRes.data.user);
+
       const response = await api.get(`/appointments/${appointmentId}`);
       setAppointment(response.data);
     } catch (error) {
-      console.error("Error fetching appointment details:", error);
+      console.error("Error loading data in TurnoDetail:", error);
       Alert.alert("Error", "No se pudo cargar la información del turno.");
     } finally {
       setLoading(false);
     }
   };
 
+  const isProfessional = currentUser?.role === "professional";
+
   const handleWhatsApp = () => {
-    const phone = appointment?.professional_profile?.user?.phone;
-    const professionalName = appointment?.professional_profile?.user?.name || "el profesional";
+    const phone = isProfessional
+      ? appointment?.client?.phone
+      : appointment?.professional_profile?.user?.phone;
+    const userName = isProfessional
+      ? `${appointment?.client?.name || ""} ${appointment?.client?.last_name || ""}`.trim() || "el cliente"
+      : appointment?.professional_profile?.user?.name || "el profesional";
     
     if (phone) {
       const cleanPhone = phone.replace(/[^0-9]/g, "");
@@ -97,7 +114,7 @@ export default function TurnoDetailScreen() {
           Alert.alert("Error", "Ocurrió un error al intentar abrir WhatsApp.");
         });
     } else {
-      Alert.alert("WhatsApp", `El profesional ${professionalName} no tiene un número registrado.`);
+      Alert.alert("WhatsApp", `El usuario ${userName} no tiene un número registrado.`);
     }
   };
 
@@ -117,7 +134,6 @@ export default function TurnoDetailScreen() {
 
     try {
       // Calcular diferencia de tiempo (mínimo 1 hora)
-      // dateStr en formato YYYY-MM-DD y start_time en formato HH:MM o HH:MM:SS
       const appDateTime = new Date(`${appointment.date}T${appointment.start_time}`);
       const now = new Date();
       const differenceInMs = appDateTime.getTime() - now.getTime();
@@ -157,10 +173,52 @@ export default function TurnoDetailScreen() {
               setCancelling(true);
               await api.patch(`/appointments/${appointmentId}/cancel`);
               Alert.alert("Turno Cancelado", "El turno ha sido cancelado con éxito.");
-              fetchAppointmentDetail(); // Recargar el estado
+              fetchProfileAndDetails(); // Recargar el estado
             } catch (error: any) {
               console.error("Error cancelling appointment:", error);
               const msg = error.response?.data?.message || "No se pudo cancelar el turno.";
+              Alert.alert("Error", msg);
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUpdateStatus = (newStatus: "accepted" | "rejected" | "cancelled") => {
+    const actionLabel = newStatus === "accepted" 
+      ? "aceptar" 
+      : newStatus === "rejected" 
+        ? "rechazar" 
+        : "cancelar";
+
+    const titleAlert = newStatus === "accepted" 
+      ? "Aceptar Solicitud" 
+      : newStatus === "rejected" 
+        ? "Rechazar Solicitud" 
+        : "Cancelar Turno";
+
+    Alert.alert(
+      titleAlert,
+      `¿Estás seguro de que deseas ${actionLabel} esta solicitud de turno?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Confirmar",
+          style: newStatus === "accepted" ? "default" : "destructive",
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              await api.patch(`/appointments/${appointmentId}/status`, {
+                status: newStatus,
+              });
+              Alert.alert("Éxito", `El turno ha sido ${newStatus === "accepted" ? "aceptado" : newStatus === "rejected" ? "rechazado" : "cancelado"} con éxito.`);
+              fetchProfileAndDetails(); // Recargar estado
+            } catch (error: any) {
+              console.error("Error updating appointment status:", error);
+              const msg = error.response?.data?.message || "No se pudo actualizar el estado del turno.";
               Alert.alert("Error", msg);
             } finally {
               setCancelling(false);
@@ -230,18 +288,147 @@ export default function TurnoDetailScreen() {
   const cleanTime = appointment.start_time.substring(0, 5);
   const duration = appointment.service ? `${appointment.service.duration_minutes} min` : "1h";
   const price = appointment.service ? `$${appointment.service.price}` : "$0";
+  
   const professionalName = `${appointment.professional_profile?.user?.name || ""} ${appointment.professional_profile?.user?.last_name || ""}`.trim() || "Profesional";
-
+  const clientName = `${appointment.client?.name || ""} ${appointment.client?.last_name || ""}`.trim() || "Cliente";
+  
+  const location = appointment.professional_profile?.shop_address || "Domicilio de atención";
   const hasPhysicalShop = appointment.professional_profile?.has_physical_shop ?? !!appointment.professional_profile?.shop_address;
-  const location = hasPhysicalShop
-    ? appointment.professional_profile?.shop_address || "Domicilio del local"
-    : appointment.address
-      ? `${appointment.address.alias}: ${appointment.address.address_line}`
-      : "Atención a domicilio (dirección no especificada)";
+  
+  const addressDetail = appointment.address
+    ? `${appointment.address.alias}: ${appointment.address.address_line}`
+    : "Atención a domicilio (dirección no especificada)";
 
-  const avatarUrl = appointment.professional_profile?.user?.avatar_url;
+  const avatarUrl = isProfessional 
+    ? appointment.client?.avatar_url 
+    : appointment.professional_profile?.user?.avatar_url;
 
-  const { canCancel, reason } = checkCanCancel();
+  const renderClientActions = () => {
+    const { canCancel, reason } = checkCanCancel();
+    
+    return (
+      <View style={{ gap: 8 }}>
+        <TouchableOpacity
+          style={[
+            styles.cancelButton, 
+            (!canCancel || cancelling) && styles.cancelButtonDisabled
+          ]}
+          onPress={handleCancelAppointment}
+          disabled={!canCancel || cancelling}
+        >
+          <Text style={styles.cancelButtonText}>
+            {cancelling ? "Cancelando..." : appointment.status === "cancelled" ? "Turno Cancelado" : "Cancelar turno"}
+          </Text>
+        </TouchableOpacity>
+
+        {!canCancel && appointment.status !== "cancelled" && appointment.status !== "completed" && appointment.status !== "rejected" && (
+          <Text style={styles.warningText}>
+            ⚠️ No puedes cancelar este turno porque falta menos de 1 hora para su inicio.
+          </Text>
+        )}
+
+        {appointment.status === "cancelled" && (
+          <Text style={[styles.warningText, { color: "#707d76" }]}>
+            Este turno ya ha sido cancelado.
+          </Text>
+        )}
+        
+        {appointment.status === "rejected" && (
+          <Text style={styles.warningText}>
+            Este turno fue rechazado por el profesional.
+          </Text>
+        )}
+        
+        {appointment.status === "completed" && (
+          <Text style={[styles.warningText, { color: "#00694c" }]}>
+            Este turno se encuentra completado.
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderProfessionalActions = () => {
+    if (appointment.status === "pending") {
+      return (
+        <View style={{ gap: 12 }}>
+          <TouchableOpacity
+            style={styles.acceptButton}
+            onPress={() => handleUpdateStatus("accepted")}
+            disabled={cancelling}
+          >
+            <Text style={styles.acceptButtonText}>
+              {cancelling ? "Procesando..." : "Aceptar Solicitud"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => handleUpdateStatus("rejected")}
+            disabled={cancelling}
+          >
+            <Text style={styles.cancelButtonText}>
+              {cancelling ? "Procesando..." : "Rechazar Solicitud"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (appointment.status === "accepted") {
+      return (
+        <View style={{ gap: 8 }}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => handleUpdateStatus("cancelled")}
+            disabled={cancelling}
+          >
+            <Text style={styles.cancelButtonText}>
+              {cancelling ? "Procesando..." : "Cancelar Turno"}
+            </Text>
+          </TouchableOpacity>
+          <Text style={[styles.warningText, { color: "#707d76" }]}>
+            Puedes cancelar este turno confirmado si tienes un imprevisto. El cliente será notificado.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ gap: 8 }}>
+        <TouchableOpacity
+          style={[styles.cancelButton, styles.cancelButtonDisabled]}
+          disabled={true}
+        >
+          <Text style={styles.cancelButtonText}>
+            {appointment.status === "cancelled" 
+              ? "Turno Cancelado" 
+              : appointment.status === "rejected" 
+                ? "Turno Rechazado" 
+                : "Turno Completado"}
+          </Text>
+        </TouchableOpacity>
+        
+        {appointment.status === "cancelled" && (
+          <Text style={[styles.warningText, { color: "#707d76" }]}>
+            Este turno se encuentra cancelado.
+          </Text>
+        )}
+
+        {appointment.status === "rejected" && (
+          <Text style={[styles.warningText, { color: "#707d76" }]}>
+            Esta solicitud de turno fue rechazada.
+          </Text>
+        )}
+
+        {appointment.status === "completed" && (
+          <Text style={[styles.warningText, { color: "#00694c" }]}>
+            Este turno se encuentra completado.
+          </Text>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -284,8 +471,12 @@ export default function TurnoDetailScreen() {
               <Text style={styles.groupValue}>{appointment.service?.name || "Servicio"}</Text>
             </View>
             <View style={[styles.infoGroup, { marginTop: 12 }]}>
-              <Text style={styles.groupLabel}>PROFESIONAL</Text>
-              <Text style={styles.groupValue}>{professionalName}</Text>
+              <Text style={styles.groupLabel}>
+                {isProfessional ? "CLIENTE" : "PROFESIONAL"}
+              </Text>
+              <Text style={styles.groupValue}>
+                {isProfessional ? clientName : professionalName}
+              </Text>
             </View>
           </View>
         </View>
@@ -307,7 +498,9 @@ export default function TurnoDetailScreen() {
 
         {/* WhatsApp Action */}
         <TouchableOpacity style={styles.whatsappButton} onPress={handleWhatsApp}>
-          <Text style={styles.whatsappText}>💬 WhatsApp del Profesional</Text>
+          <Text style={styles.whatsappText}>
+            💬 WhatsApp del {isProfessional ? "Cliente" : "Profesional"}
+          </Text>
         </TouchableOpacity>
 
         {/* Location Section */}
@@ -318,7 +511,7 @@ export default function TurnoDetailScreen() {
           <View style={styles.locationInputContainer}>
             <TextInput
               style={styles.locationInput}
-              value={location}
+              value={hasPhysicalShop ? location : addressDetail}
               editable={false}
               multiline={true}
             />
@@ -332,45 +525,8 @@ export default function TurnoDetailScreen() {
           </View>
         </View>
 
-        {/* Cancel Action */}
-        <View style={{ gap: 8 }}>
-          <TouchableOpacity
-            style={[
-              styles.cancelButton, 
-              (!canCancel || cancelling) && styles.cancelButtonDisabled
-            ]}
-            onPress={handleCancelAppointment}
-            disabled={!canCancel || cancelling}
-          >
-            <Text style={styles.cancelButtonText}>
-              {cancelling ? "Cancelando..." : appointment.status === "cancelled" ? "Turno Cancelado" : "Cancelar turno"}
-            </Text>
-          </TouchableOpacity>
-
-          {!canCancel && appointment.status !== "cancelled" && appointment.status !== "completed" && appointment.status !== "rejected" && (
-            <Text style={styles.warningText}>
-              ⚠️ No puedes cancelar este turno porque falta menos de 1 hora para su inicio.
-            </Text>
-          )}
-
-          {appointment.status === "cancelled" && (
-            <Text style={[styles.warningText, { color: "#707d76" }]}>
-              Este turno ya ha sido cancelado.
-            </Text>
-          )}
-          
-          {appointment.status === "rejected" && (
-            <Text style={styles.warningText}>
-              Este turno fue rechazado por el profesional.
-            </Text>
-          )}
-          
-          {appointment.status === "completed" && (
-            <Text style={[styles.warningText, { color: "#00694c" }]}>
-              Este turno se encuentra completado.
-            </Text>
-          )}
-        </View>
+        {/* Cancel/Accept/Reject Actions */}
+        {isProfessional ? renderProfessionalActions() : renderClientActions()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -550,6 +706,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#bccac1",
   },
   cancelButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  acceptButton: {
+    width: "100%",
+    backgroundColor: "#008560",
+    height: 48,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  acceptButtonText: {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",

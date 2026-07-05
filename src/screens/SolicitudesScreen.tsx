@@ -271,7 +271,14 @@ export default function SolicitudesScreen() {
             ) : (
               requests.map((item) => (
                 <View key={item.id} style={styles.card}>
-                  <View style={styles.cardLeft}>
+                  <TouchableOpacity
+                    style={styles.cardLeft}
+                    onPress={() =>
+                      navigation.navigate("TurnoDetail", {
+                        appointmentId: item.id,
+                      })
+                    }
+                  >
                     <View style={styles.avatarContainer}>
                       {item.imageUrl ? (
                         <Image source={{ uri: item.imageUrl }} style={styles.avatar} />
@@ -286,7 +293,7 @@ export default function SolicitudesScreen() {
                       </Text>
                       <Text style={styles.timeText}>{item.timeText}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
 
                   <View style={styles.actionsContainer}>
                     <TouchableOpacity
