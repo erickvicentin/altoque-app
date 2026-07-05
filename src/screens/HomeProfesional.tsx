@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import ProfileScreen from "./ProfileScreen";
 import ServicesScreen from "./ServicesScreen";
 import BottomNavBar, { TabItem } from "./BottomNavBar";
@@ -70,7 +71,17 @@ export default function HomeProfesional({ route, navigation }: any) {
 
       {/* TopAppBar */}
       <View style={styles.header}>
+        <View style={styles.headerSpacer} />
         <Text style={styles.logo}>{TABS_NAMES[activeTab] || "alToque"}</Text>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.navigate("Solicitudes", { user })}
+        >
+          <View>
+            <Feather name="bell" size={24} color="#3d4943" />
+            <View style={styles.notificationDot} />
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Main Content Area */}
@@ -119,6 +130,15 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40,
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#e11d48',
   },
   headerTitle: {
     fontSize: 28,
