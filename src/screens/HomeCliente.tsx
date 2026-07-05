@@ -287,7 +287,15 @@ export default function HomeCliente({ route, navigation }: any) {
                   const badge = getStatusBadgeStyle(item.status);
 
                   return (
-                    <View key={item.id} style={styles.turnoCard}>
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.turnoCard}
+                      onPress={() =>
+                        navigation.navigate("TurnoDetail", {
+                          appointmentId: item.id,
+                        })
+                      }
+                    >
                       <View style={styles.turnoImageContainer}>
                         {profUser.avatar_url ? (
                           <Image source={{ uri: profUser.avatar_url }} style={styles.turnoImage} />
@@ -318,7 +326,7 @@ export default function HomeCliente({ route, navigation }: any) {
                           </Text>
                         </View>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </ScrollView>

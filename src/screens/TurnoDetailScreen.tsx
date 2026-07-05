@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,64 +10,238 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  ActivityIndicator,
+  Linking,
+  Platform,
 } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import api from "../services/api";
 
-interface AppointmentDetail {
-  serviceName: string;
-  professionalName: string;
-  day: string;
+interface AppointmentData {
+  id: number;
+  status: string;
   date: string;
-  time: string;
-  duration: string;
-  price: string;
-  location: string;
-  imageUrl?: string;
+  start_time: string;
+  end_time: string;
+  notes?: string;
+  service?: {
+    name: string;
+    duration_minutes: number;
+    price: string | number;
+  };
+  professional_profile?: {
+    shop_address?: string;
+    has_physical_shop?: boolean | number;
+    user?: {
+      name: string;
+      last_name?: string;
+      avatar_url?: string;
+      phone?: string;
+    };
+  };
+  address?: {
+    id: number;
+    alias: string;
+    address_line: string;
+  };
 }
 
 export default function TurnoDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const appointmentId = route.params?.appointmentId;
 
-  // Valores por defecto basados en el mockup si no se pasan parámetros
-  const appointment: AppointmentDetail = route.params?.appointment || {
-    serviceName: "Corte y Barba",
-    professionalName: "Fran Perez",
-    day: "Lunes",
-    date: "18 de mayo",
-    time: "16:30",
-    duration: "1h",
-    price: "$4.500",
-    location: "Av. Sarmiento 1515",
-    imageUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD7SQZMNT2J8WjZJ38RMu9dyvKxZ8uG2nkCu5yyxYkVNbGH-Uag993QKairkeKOTLpaSXAjyOdJEsnO_Omcwj4i-yrXI6lHOWeBif64y_yvGrcKNvSA91XPPBus6M11yd11ulke9XW1hjGHqdyxVWreOtFFZgnn2CHGCJ04mQlTS8wG64u0RtM8mTA5avsKSDwrQrNVOJrZdc2x0LEAQJQgjajD8Xcge0AtVUk3YAREEyk1ZdpQ2UoU-RipD3S8KPEGSHZvaI43Ag",
+  const [appointment, setAppointment] = useState<AppointmentData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    if (appointmentId) {
+      fetchAppointmentDetail();
+    } else {
+      setLoading(false);
+    }
+  }, [appointmentId]);
+
+  const fetchAppointmentDetail = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/appointments/${appointmentId}`);
+      setAppointment(response.data);
+    } catch (error) {
+      console.error("Error fetching appointment details:", error);
+      Alert.alert("Error", "No se pudo cargar la información del turno.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleWhatsApp = () => {
-    Alert.alert(
-      "WhatsApp",
-      `Abriendo chat de WhatsApp con el profesional ${appointment.professionalName}...`
-    );
+    const phone = appointment?.professional_profile?.user?.phone;
+    const professionalName = appointment?.professional_profile?.user?.name || "el profesional";
+    
+    if (phone) {
+      const cleanPhone = phone.replace(/[^0-9]/g, "");
+      const url = `https://wa.me/${cleanPhone}`;
+      Linking.canOpenURL(url)
+        .then((supported) => {
+          if (supported) {
+            Linking.openURL(url);
+          } else {
+            Alert.alert("Error", "No se pudo abrir WhatsApp en este dispositivo.");
+          }
+        })
+        .catch((err) => {
+          console.error("Error opening WhatsApp:", err);
+          Alert.alert("Error", "Ocurrió un error al intentar abrir WhatsApp.");
+        });
+    } else {
+      Alert.alert("WhatsApp", `El profesional ${professionalName} no tiene un número registrado.`);
+    }
+  };
+
+  const checkCanCancel = (): { canCancel: boolean; reason?: string } => {
+    if (!appointment) return { canCancel: false };
+
+    // Si el turno ya no está activo
+    if (appointment.status === "cancelled") {
+      return { canCancel: false, reason: "El turno ya se encuentra cancelado." };
+    }
+    if (appointment.status === "completed") {
+      return { canCancel: false, reason: "El turno ya se completó." };
+    }
+    if (appointment.status === "rejected") {
+      return { canCancel: false, reason: "El turno fue rechazado por el profesional." };
+    }
+
+    try {
+      // Calcular diferencia de tiempo (mínimo 1 hora)
+      // dateStr en formato YYYY-MM-DD y start_time en formato HH:MM o HH:MM:SS
+      const appDateTime = new Date(`${appointment.date}T${appointment.start_time}`);
+      const now = new Date();
+      const differenceInMs = appDateTime.getTime() - now.getTime();
+      const differenceInMinutes = differenceInMs / (1000 * 60);
+
+      if (differenceInMinutes < 60) {
+        return {
+          canCancel: false,
+          reason: "Falta menos de 1 hora para el turno. No es posible cancelarlo.",
+        };
+      }
+
+      return { canCancel: true };
+    } catch (e) {
+      return { canCancel: false, reason: "Error al calcular el tiempo restante." };
+    }
   };
 
   const handleCancelAppointment = () => {
+    const { canCancel, reason } = checkCanCancel();
+
+    if (!canCancel) {
+      Alert.alert("No permitido", reason || "No se puede cancelar este turno.");
+      return;
+    }
+
     Alert.alert(
       "Cancelar Turno",
-      "¿Estás seguro de que deseas cancelar este turno?",
+      "¿Estás seguro de que deseas cancelar este turno? Esta acción no se puede deshacer.",
       [
         { text: "No, mantener", style: "cancel" },
         {
           text: "Sí, cancelar",
           style: "destructive",
-          onPress: () => {
-            Alert.alert("Turno Cancelado", "El turno ha sido cancelado con éxito.");
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              await api.patch(`/appointments/${appointmentId}/cancel`);
+              Alert.alert("Turno Cancelado", "El turno ha sido cancelado con éxito.");
+              fetchAppointmentDetail(); // Recargar el estado
+            } catch (error: any) {
+              console.error("Error cancelling appointment:", error);
+              const msg = error.response?.data?.message || "No se pudo cancelar el turno.";
+              Alert.alert("Error", msg);
+            } finally {
+              setCancelling(false);
+            }
           },
         },
       ]
     );
   };
+
+  const formatAppointmentDate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const date = new Date(year, month, day);
+
+      const DAYS_OF_WEEK = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const MONTH_NAMES = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+      ];
+      
+      return {
+        dayName: DAYS_OF_WEEK[date.getDay()],
+        dateFormatted: `${day} de ${MONTH_NAMES[date.getMonth()]}`,
+      };
+    } catch (e) {
+      return {
+        dayName: "Turno",
+        dateFormatted: dateStr,
+      };
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#00694c" />
+          <Text style={styles.loadingText}>Cargando detalles del turno...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!appointment) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Feather name="arrow-left" size={24} color="#181c1c" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Feather name="alert-triangle" size={48} color="#b91c1c" />
+          <Text style={[styles.loadingText, { color: "#b91c1c", marginTop: 12 }]}>
+            No se encontró información para este turno.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const { dayName, dateFormatted } = formatAppointmentDate(appointment.date);
+  const cleanTime = appointment.start_time.substring(0, 5);
+  const duration = appointment.service ? `${appointment.service.duration_minutes} min` : "1h";
+  const price = appointment.service ? `$${appointment.service.price}` : "$0";
+  const professionalName = `${appointment.professional_profile?.user?.name || ""} ${appointment.professional_profile?.user?.last_name || ""}`.trim() || "Profesional";
+
+  const hasPhysicalShop = appointment.professional_profile?.has_physical_shop ?? !!appointment.professional_profile?.shop_address;
+  const location = hasPhysicalShop
+    ? appointment.professional_profile?.shop_address || "Domicilio del local"
+    : appointment.address
+      ? `${appointment.address.alias}: ${appointment.address.address_line}`
+      : "Atención a domicilio (dirección no especificada)";
+
+  const avatarUrl = appointment.professional_profile?.user?.avatar_url;
+
+  const { canCancel, reason } = checkCanCancel();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -96,20 +270,22 @@ export default function TurnoDetailScreen() {
         {/* Details Card */}
         <View style={styles.detailsCard}>
           <View style={styles.imageContainer}>
-            {appointment.imageUrl ? (
-              <Image source={{ uri: appointment.imageUrl }} style={styles.cardImage} />
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.cardImage} />
             ) : (
-              <Feather name="user" size={32} color="#008560" />
+              <View style={styles.avatarPlaceholder}>
+                <Feather name="user" size={32} color="#00694c" />
+              </View>
             )}
           </View>
           <View style={styles.cardInfo}>
             <View style={styles.infoGroup}>
               <Text style={styles.groupLabel}>SERVICIO</Text>
-              <Text style={styles.groupValue}>{appointment.serviceName}</Text>
+              <Text style={styles.groupValue}>{appointment.service?.name || "Servicio"}</Text>
             </View>
             <View style={[styles.infoGroup, { marginTop: 12 }]}>
               <Text style={styles.groupLabel}>PROFESIONAL</Text>
-              <Text style={styles.groupValue}>{appointment.professionalName}</Text>
+              <Text style={styles.groupValue}>{professionalName}</Text>
             </View>
           </View>
         </View>
@@ -118,14 +294,14 @@ export default function TurnoDetailScreen() {
         <View style={styles.bentoContainer}>
           <View style={styles.bentoItem}>
             <Text style={styles.groupLabel}>FECHA</Text>
-            <Text style={styles.bentoDay}>{appointment.day}</Text>
-            <Text style={styles.bentoSubtext}>{appointment.date}</Text>
+            <Text style={styles.bentoDay}>{dayName}</Text>
+            <Text style={styles.bentoSubtext}>{dateFormatted}</Text>
           </View>
 
           <View style={styles.bentoItem}>
             <Text style={styles.groupLabel}>HORARIO</Text>
-            <Text style={styles.bentoDay}>{appointment.time}</Text>
-            <Text style={styles.bentoSubtext}>Turno de {appointment.duration}</Text>
+            <Text style={styles.bentoDay}>{cleanTime} hs</Text>
+            <Text style={styles.bentoSubtext}>Duración: {duration}</Text>
           </View>
         </View>
 
@@ -136,33 +312,65 @@ export default function TurnoDetailScreen() {
 
         {/* Location Section */}
         <View style={styles.locationGroup}>
-          <Text style={styles.locationLabel}>Domicilio de atención:</Text>
+          <Text style={styles.locationLabel}>
+            {hasPhysicalShop ? "Domicilio de atención (Local físico):" : "Dirección de atención (A domicilio):"}
+          </Text>
           <View style={styles.locationInputContainer}>
             <TextInput
               style={styles.locationInput}
-              value={appointment.location}
+              value={location}
               editable={false}
+              multiline={true}
             />
-            <TouchableOpacity style={styles.clearLocationButton} disabled={true}>
-              <Feather name="x" size={20} color="#6d7a73" />
-            </TouchableOpacity>
           </View>
         </View>
 
         {/* Cost Pill */}
         <View style={styles.costContainer}>
           <View style={styles.costPill}>
-            <Text style={styles.costText}>Total: {appointment.price}</Text>
+            <Text style={styles.costText}>Total: {price}</Text>
           </View>
         </View>
 
         {/* Cancel Action */}
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={handleCancelAppointment}
-        >
-          <Text style={styles.cancelButtonText}>Cancelar turno</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 8 }}>
+          <TouchableOpacity
+            style={[
+              styles.cancelButton, 
+              (!canCancel || cancelling) && styles.cancelButtonDisabled
+            ]}
+            onPress={handleCancelAppointment}
+            disabled={!canCancel || cancelling}
+          >
+            <Text style={styles.cancelButtonText}>
+              {cancelling ? "Cancelando..." : appointment.status === "cancelled" ? "Turno Cancelado" : "Cancelar turno"}
+            </Text>
+          </TouchableOpacity>
+
+          {!canCancel && appointment.status !== "cancelled" && appointment.status !== "completed" && appointment.status !== "rejected" && (
+            <Text style={styles.warningText}>
+              ⚠️ No puedes cancelar este turno porque falta menos de 1 hora para su inicio.
+            </Text>
+          )}
+
+          {appointment.status === "cancelled" && (
+            <Text style={[styles.warningText, { color: "#707d76" }]}>
+              Este turno ya ha sido cancelado.
+            </Text>
+          )}
+          
+          {appointment.status === "rejected" && (
+            <Text style={styles.warningText}>
+              Este turno fue rechazado por el profesional.
+            </Text>
+          )}
+          
+          {appointment.status === "completed" && (
+            <Text style={[styles.warningText, { color: "#00694c" }]}>
+              Este turno se encuentra completado.
+            </Text>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -229,6 +437,13 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  avatarPlaceholder: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#c2f0d9",
+  },
   cardInfo: {
     flex: 1,
     justifyContent: "center",
@@ -292,26 +507,18 @@ const styles = StyleSheet.create({
     color: "#3d4943",
   },
   locationInputContainer: {
-    position: "relative",
     width: "100%",
   },
   locationInput: {
     width: "100%",
-    height: 48,
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#bccac1",
     borderRadius: 8,
-    paddingLeft: 16,
-    paddingRight: 48,
+    padding: 12,
     fontSize: 14,
     color: "#181c1c",
-  },
-  clearLocationButton: {
-    position: "absolute",
-    right: 16,
-    top: "50%",
-    marginTop: -10,
+    textAlignVertical: "top",
   },
   costContainer: {
     alignItems: "center",
@@ -339,9 +546,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
+  cancelButtonDisabled: {
+    backgroundColor: "#bccac1",
+  },
   cancelButtonText: {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f7faf8",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: "#3d4943",
+    fontWeight: "500",
+  },
+  warningText: {
+    fontSize: 12,
+    color: "#b91c1c",
+    textAlign: "center",
+    marginTop: 4,
+    paddingHorizontal: 16,
+    lineHeight: 18,
+    fontWeight: "500",
   },
 });

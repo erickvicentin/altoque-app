@@ -130,7 +130,14 @@ export default function ExploreTab() {
       {/* Upcoming Appointments */}
       <Text style={styles.sectionTitle}>Próximos turnos</Text>
       {nextAppointment ? (
-        <View style={styles.appointmentCard}>
+        <TouchableOpacity
+          style={styles.appointmentCard}
+          onPress={() =>
+            navigation.navigate("TurnoDetail", {
+              appointmentId: nextAppointment.id,
+            })
+          }
+        >
           <View style={styles.appointmentHeader}>
             <View>
               <Text style={styles.appointmentTitle}>{nextAppointment.service?.name || "Servicio"}</Text>
@@ -138,26 +145,6 @@ export default function ExploreTab() {
                 con {nextAppointment.professional_profile?.user?.name || "Profesional"}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate("TurnoDetail", {
-                  appointment: {
-                    serviceName: "Corte y Barba",
-                    professionalName: "Fran Perez",
-                    day: "Viernes",
-                    date: "18 de mayo",
-                    time: "18:45",
-                    duration: "1h",
-                    price: "$4.500",
-                    location: "Av. Sarmiento 1515",
-                    imageUrl:
-                      "https://lh3.googleusercontent.com/aida-public/AB6AXuBDyBj5TaecCAsFprwmZlD-c_anCrDnZEWxM-CqeCMhA1JvXkvukrUqERYryCCSqSydbCIU0NH8dXPKIGdjvDTfB_At78BYA1ZVbCJ0x1bA9m0fW7rMiCPaUAnqPvcKIDbntAyB6sWlCy_DQfrB_AoAtmqX22s3e57HPvE2ZvsfIe_5DersGjw4_gqTGkzD2YejCuzqaRBsR2LRfbtw6kHYZ0hxg5q0pAgVFmbPfYC8OBJZq4YBBEPUidEZ5qvi03mG7oiXQrsnVA",
-                  },
-                })
-              }
-            >
-              <MaterialIcons name="more-vert" size={24} color="#3d4943" />
-            </TouchableOpacity>
           </View>
           <View style={styles.appointmentTags}>
             <View style={styles.timeTag}>
@@ -178,7 +165,7 @@ export default function ExploreTab() {
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       ) : (
         <View style={styles.noAppointmentsCard}>
           <Feather name="calendar" size={32} color="#707d76" style={{ marginBottom: 8 }} />

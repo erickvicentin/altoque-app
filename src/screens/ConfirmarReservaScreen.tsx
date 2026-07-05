@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
@@ -25,6 +26,40 @@ export default function ConfirmarReservaScreen() {
   const route = useRoute<any>();
   const { professional, selectedService, selectedDate, selectedSlot } = route.params || {};
 
+  const hasPhysicalShop = professional?.isShop ?? professional?.has_physical_shop;
+
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+
+  useEffect(() => {
+    if (!hasPhysicalShop) {
+      fetchAddresses();
+    }
+  }, [hasPhysicalShop]);
+
+  const fetchAddresses = async () => {
+    try {
+      setLoadingAddresses(true);
+      const response = await api.get("/addresses");
+      const list = response.data || [];
+      setAddresses(list);
+
+      // Pre-seleccionar la predeterminada o la primera
+      const defaultAddr = list.find((a: any) => a.is_default);
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+      } else if (list.length > 0) {
+        setSelectedAddressId(list[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching client addresses:", error);
+      Alert.alert("Error", "No se pudieron cargar tus direcciones para la visita a domicilio.");
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
   // Formato de fecha: "Lunes, 18 de mayo"
   const getFormattedDate = () => {
     if (!selectedDate) return "";
@@ -36,6 +71,11 @@ export default function ConfirmarReservaScreen() {
   };
 
   const handleConfirmar = async () => {
+    if (!hasPhysicalShop && !selectedAddressId) {
+      Alert.alert("Dirección Requerida", "Debes seleccionar una dirección para la atención a domicilio.");
+      return;
+    }
+
     try {
       const profileId = professional.professional_profile_id || professional.id;
       const dateObj = new Date(selectedDate);
@@ -52,6 +92,7 @@ export default function ConfirmarReservaScreen() {
         date: formattedDate,
         start_time: cleanSlot,
         notes: "Reserva realizada desde la app alToque.",
+        address_id: !hasPhysicalShop ? selectedAddressId : null,
       };
 
       await api.post("/appointments", payload);
@@ -85,6 +126,8 @@ export default function ConfirmarReservaScreen() {
     );
   };
 
+  const isConfirmDisabled = !hasPhysicalShop && !selectedAddressId;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7faf8" />
@@ -106,7 +149,7 @@ export default function ConfirmarReservaScreen() {
 
         {/* Stacked Cards Detail */}
         <View style={styles.cardsContainer}>
-          {/* Card 1: Service (No image, as requested) */}
+          {/* Card 1: Service */}
           <View style={styles.detailCard}>
             <View style={styles.cardIconWrapper}>
               <MaterialIcons name="business-center" size={28} color="#008560" />
@@ -117,7 +160,7 @@ export default function ConfirmarReservaScreen() {
             </View>
           </View>
 
-          {/* Card 2: Professional (With Avatar) */}
+          {/* Card 2: Professional */}
           <View style={styles.detailCard}>
             {professional?.image ? (
               <Image source={{ uri: professional.image }} style={styles.professionalAvatar} />
@@ -131,6 +174,85 @@ export default function ConfirmarReservaScreen() {
               <Text style={styles.cardValue}>{professional?.name || "Profesional"}</Text>
             </View>
           </View>
+
+          {/* Card 3: Location / Address Selection */}
+          {hasPhysicalShop ? (
+            <View style={styles.detailCard}>
+              <View style={styles.cardIconWrapper}>
+                <Feather name="map-pin" size={24} color="#008560" />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardLabel}>Dirección de atención (Local físico)</Text>
+                <Text style={styles.cardValue}>{professional?.shop_address || "Dirección del local"}</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.detailCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <View style={styles.cardIconWrapper}>
+                  <Feather name="home" size={24} color="#008560" />
+                </View>
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardLabel}>Atención a Domicilio</Text>
+                  <Text style={styles.cardValue}>Seleccioná tu dirección:</Text>
+                </View>
+              </View>
+
+              {loadingAddresses ? (
+                <ActivityIndicator size="small" color="#008560" style={{ marginTop: 12 }} />
+              ) : addresses.length === 0 ? (
+                <View style={styles.noAddressesContainer}>
+                  <Text style={styles.noAddressesText}>
+                    ⚠️ No tenés direcciones guardadas para recibir la visita a domicilio.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.addAddressBtn}
+                    onPress={() => {
+                      Alert.alert(
+                        "Dirección Requerida",
+                        "Por favor, ve a la pestaña Perfil en la pantalla de inicio y agrega una dirección física para continuar con la reserva."
+                      );
+                    }}
+                  >
+                    <Text style={styles.addAddressBtnText}>Cómo agregar una dirección</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.addressListContainer}>
+                  {addresses.map((addr) => {
+                    const isSelected = selectedAddressId === addr.id;
+                    return (
+                      <TouchableOpacity
+                        key={addr.id}
+                        style={[
+                          styles.addressOption,
+                          isSelected && styles.addressOptionSelected
+                        ]}
+                        onPress={() => setSelectedAddressId(addr.id)}
+                      >
+                        <View style={styles.addressOptionLeft}>
+                          <MaterialIcons 
+                            name={isSelected ? "radio-button-checked" : "radio-button-unchecked"} 
+                            size={20} 
+                            color={isSelected ? "#008560" : "#707d76"} 
+                          />
+                          <View style={{ marginLeft: 10 }}>
+                            <Text style={styles.addressAlias}>{addr.alias}</Text>
+                            <Text style={styles.addressLine}>{addr.address_line}</Text>
+                          </View>
+                        </View>
+                        {addr.is_default && (
+                          <View style={styles.defaultBadge}>
+                            <Text style={styles.defaultBadgeText}>Predeterminada</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Date/Time Bento Grid */}
@@ -165,7 +287,12 @@ export default function ConfirmarReservaScreen() {
 
         {/* Action Buttons */}
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmar} activeOpacity={0.9}>
+          <TouchableOpacity 
+            style={[styles.confirmBtn, isConfirmDisabled && styles.confirmBtnDisabled]} 
+            onPress={handleConfirmar} 
+            activeOpacity={0.9}
+            disabled={isConfirmDisabled}
+          >
             <Text style={styles.confirmBtnText}>Confirmar reserva de turno</Text>
           </TouchableOpacity>
 
@@ -333,6 +460,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  confirmBtnDisabled: {
+    backgroundColor: '#bccac1',
+  },
   confirmBtnText: {
     color: '#ffffff',
     fontSize: 16,
@@ -349,5 +479,76 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  noAddressesContainer: {
+    marginTop: 12,
+    backgroundColor: '#fffbeb',
+    borderColor: '#fef3c7',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  noAddressesText: {
+    fontSize: 12,
+    color: '#b45309',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  addAddressBtn: {
+    backgroundColor: '#d97706',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  addAddressBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  addressListContainer: {
+    marginTop: 12,
+    gap: 8,
+  },
+  addressOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e6e9e7',
+    borderRadius: 8,
+    backgroundColor: '#fafcfa',
+  },
+  addressOptionSelected: {
+    borderColor: '#008560',
+    backgroundColor: '#f5fff7',
+  },
+  addressOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  addressAlias: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#181c1c',
+  },
+  addressLine: {
+    fontSize: 12,
+    color: '#707d76',
+    marginTop: 2,
+  },
+  defaultBadge: {
+    backgroundColor: '#ebefed',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  defaultBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#3d4943',
   },
 });
