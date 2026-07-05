@@ -17,6 +17,7 @@ export default function HomeProfesional({ route, navigation }: any) {
   // Estados para notificaciones y polling de turnos
   const [hasPendingRequests, setHasPendingRequests] = useState(false);
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+  const [latestPendingRequest, setLatestPendingRequest] = useState<any | null>(null);
   const knownPendingIds = useRef<number[]>([]);
   const isInitialLoad = useRef(true);
 
@@ -32,11 +33,15 @@ export default function HomeProfesional({ route, navigation }: any) {
     try {
       const response = await api.get("/appointments");
       const list = response.data || [];
-      
+
       // 1. Solicitudes pendientes para notificaciones
       const pendingApps = list.filter((app: any) => app.status === "pending");
       const pendingIds = pendingApps.map((app: any) => app.id);
       setHasPendingRequests(pendingApps.length > 0);
+
+      // Ordenar por ID descendente (la última ingresada primero)
+      pendingApps.sort((a: any, b: any) => b.id - a.id);
+      setLatestPendingRequest(pendingApps.length > 0 ? pendingApps[0] : null);
 
       // 2. Próximos clientes confirmados (accepted y a futuro)
       const acceptedApps = list.filter((app: any) => app.status === "accepted");
@@ -89,6 +94,97 @@ export default function HomeProfesional({ route, navigation }: any) {
     }, [checkPendingRequests])
   );
 
+  const handleAcceptRequest = async (id: number, clientName: string) => {
+    try {
+      await api.patch(`/appointments/${id}/status`, {
+        status: "accepted",
+      });
+
+      const response = await api.get("/appointments");
+      const list = response.data || [];
+
+      const pendingApps = list.filter((app: any) => app.status === "pending");
+      pendingApps.sort((a: any, b: any) => b.id - a.id);
+      setLatestPendingRequest(pendingApps.length > 0 ? pendingApps[0] : null);
+      setHasPendingRequests(pendingApps.length > 0);
+
+      const acceptedApps = list.filter((app: any) => app.status === "accepted");
+      const now = new Date();
+      const upcoming = acceptedApps.filter((app: any) => {
+        const appDate = new Date(`${app.date}T${app.start_time}`);
+        return appDate >= now;
+      });
+      upcoming.sort((a: any, b: any) => {
+        const dateA = new Date(`${a.date}T${a.start_time}`);
+        const dateB = new Date(`${b.date}T${b.start_time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+      setUpcomingAppointments(upcoming.slice(0, 3));
+
+      if (pendingApps.length > 0) {
+        Alert.alert("Solicitud Aceptada", `Has aceptado el turno de ${clientName}.`);
+      } else {
+        Alert.alert("Solicitud Aceptada", `Has aceptado el turno de ${clientName}.\nNo tenés nuevas solicitudes.`);
+      }
+    } catch (error: any) {
+      console.error("Error accepting request:", error);
+      const msg = error.response?.data?.message || "No se pudo aceptar la solicitud.";
+      Alert.alert("Error", msg);
+    }
+  };
+
+  const handleRejectRequest = async (id: number, clientName: string) => {
+    Alert.alert(
+      "Rechazar Solicitud",
+      `¿Estás seguro de que deseas rechazar el turno de ${clientName}?`,
+      [
+        { text: "Volver Atrás", style: "cancel" },
+        {
+          text: "Si, confirmar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.patch(`/appointments/${id}/status`, {
+                status: "rejected",
+              });
+
+              const response = await api.get("/appointments");
+              const list = response.data || [];
+
+              const pendingApps = list.filter((app: any) => app.status === "pending");
+              pendingApps.sort((a: any, b: any) => b.id - a.id);
+              setLatestPendingRequest(pendingApps.length > 0 ? pendingApps[0] : null);
+              setHasPendingRequests(pendingApps.length > 0);
+
+              const acceptedApps = list.filter((app: any) => app.status === "accepted");
+              const now = new Date();
+              const upcoming = acceptedApps.filter((app: any) => {
+                const appDate = new Date(`${app.date}T${app.start_time}`);
+                return appDate >= now;
+              });
+              upcoming.sort((a: any, b: any) => {
+                const dateA = new Date(`${a.date}T${a.start_time}`);
+                const dateB = new Date(`${b.date}T${b.start_time}`);
+                return dateA.getTime() - dateB.getTime();
+              });
+              setUpcomingAppointments(upcoming.slice(0, 3));
+
+              if (pendingApps.length > 0) {
+                Alert.alert("Solicitud Rechazada", `Has rechazado el turno de ${clientName}.`);
+              } else {
+                Alert.alert("Solicitud Rechazada", `Has rechazado el turno de ${clientName}.\nNo tenés nuevas solicitudes.`);
+              }
+            } catch (error: any) {
+              console.error("Error rejecting request:", error);
+              const msg = error.response?.data?.message || "No se pudo rechazar la solicitud.";
+              Alert.alert("Error", msg);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleLogout = async () => {
     try {
       navigation.replace("Login");
@@ -126,7 +222,7 @@ export default function HomeProfesional({ route, navigation }: any) {
             {/* Tus próximos clientes */}
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Tus próximos clientes</Text>
-              
+
               {upcomingAppointments.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>No tienes próximos clientes confirmados</Text>
@@ -175,43 +271,67 @@ export default function HomeProfesional({ route, navigation }: any) {
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate("ProfessionalAppointments")}
               >
-                <Text style={styles.outlineButtonText}>Ver más</Text>
+                <Text style={styles.outlineButtonText}>Ver más turnos</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Divider */}
-            <View style={styles.divider} />
-
             {/* Confirmación pendiente */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Confirmación pendiente</Text>
+            {latestPendingRequest && (
+              <>
+                {/* Divider */}
+                <View style={styles.divider} />
 
-              {/* Warning Card */}
-              <View style={styles.warningCard}>
-                <View style={styles.warningCardHeader}>
-                  <Image
-                    source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDWEisCu0iiID-HIHkHBtAosLAYxdUD8qW7z1q1BKuWxiSE_KfUPV1Ltxy5xuijGpAW10vtBArN9AAgPN7NcXvhZVFPtnSV_OaZ6q-oi89k6a_G9KDrOU69AtrEHWzkusIYMjhzIJOPxk6OkFLWsv4o4cfG5PWMP6s7npNQzl0vulFM1jhfDAMaHM6Ooq4fRodyHk6NU9MaMZUcmkERlKE4XXnBLtbtii2NceB-q8sm-RE6ni1Vm206L4mMrDoIl5LaoyIkNVrwIg" }}
-                    style={styles.clientAvatar}
-                  />
-                  <View style={styles.clientInfo}>
-                    <Text style={[styles.clientName, { color: "#92400E" }]}>Sofía Martínez</Text>
-                    <Text style={[styles.clientService, { color: "rgba(146, 64, 14, 0.8)" }]}>Coloración</Text>
-                  </View>
-                  <View style={styles.warningTimeBadge}>
-                    <Text style={styles.warningTimeBadgeText}>15:00</Text>
+                <View style={styles.sectionContainer}>
+                  <Text style={styles.sectionTitle}>Confirmación pendiente</Text>
+
+                  {/* Warning Card */}
+                  <View style={styles.warningCard}>
+                    <View style={styles.warningCardHeader}>
+                      {latestPendingRequest.client?.avatar_url ? (
+                        <Image
+                          source={{ uri: latestPendingRequest.client.avatar_url }}
+                          style={styles.clientAvatar}
+                        />
+                      ) : (
+                        <View style={[styles.clientAvatar, { backgroundColor: "#fffbeb", justifyContent: "center", alignItems: "center" }]}>
+                          <Feather name="user" size={24} color="#d97706" />
+                        </View>
+                      )}
+                      <View style={styles.clientInfo}>
+                        <Text style={[styles.clientName, { color: "#92400E" }]}>
+                          {`${latestPendingRequest.client?.name || ""} ${latestPendingRequest.client?.last_name || ""}`.trim() || "Cliente"}
+                        </Text>
+                        <Text style={[styles.clientService, { color: "rgba(146, 64, 14, 0.8)" }]}>
+                          {latestPendingRequest.service?.name || "Servicio"}
+                        </Text>
+                      </View>
+                      <View style={styles.warningTimeBadge}>
+                        <Text style={styles.warningTimeBadgeText}>
+                          {latestPendingRequest.start_time ? latestPendingRequest.start_time.substring(0, 5) : "--:--"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.warningCardActions}>
+                      <TouchableOpacity
+                        style={styles.warningRejectButton}
+                        activeOpacity={0.7}
+                        onPress={() => handleRejectRequest(latestPendingRequest.id, `${latestPendingRequest.client?.name || ""} ${latestPendingRequest.client?.last_name || ""}`.trim())}
+                      >
+                        <Text style={styles.warningRejectButtonText}>Rechazar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.warningConfirmButton}
+                        activeOpacity={0.7}
+                        onPress={() => handleAcceptRequest(latestPendingRequest.id, `${latestPendingRequest.client?.name || ""} ${latestPendingRequest.client?.last_name || ""}`.trim())}
+                      >
+                        <Text style={styles.warningConfirmButtonText}>Confirmar</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-                
-                <View style={styles.warningCardActions}>
-                  <TouchableOpacity style={styles.warningRejectButton} activeOpacity={0.7}>
-                    <Text style={styles.warningRejectButtonText}>Rechazar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.warningConfirmButton} activeOpacity={0.7}>
-                    <Text style={styles.warningConfirmButtonText}>Confirmar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
+              </>
+            )}
 
             {/* Quick Actions */}
             <View style={[styles.sectionContainer, { paddingBottom: Platform.OS === "ios" ? 110 : 95 }]}>
@@ -269,15 +389,19 @@ export default function HomeProfesional({ route, navigation }: any) {
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.logo}>alToque</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.navigate("Solicitudes", { user })}
-        >
-          <View>
-            <Feather name="bell" size={24} color="#3d4943" />
-            {hasPendingRequests && <View style={styles.notificationDot} />}
-          </View>
-        </TouchableOpacity>
+        {activeTab === "negocio" ? (
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate("Solicitudes", { user })}
+          >
+            <View>
+              <Feather name="bell" size={24} color="#3d4943" />
+              {hasPendingRequests && <View style={styles.notificationDot} />}
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
       {/* Main Content Area */}

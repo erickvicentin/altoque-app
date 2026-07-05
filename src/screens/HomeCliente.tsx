@@ -333,15 +333,19 @@ export default function HomeCliente({ route, navigation }: any) {
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={[styles.logo, { color: '#008560' }]}>{TABS_NAMES[activeTab] || "alToque"}</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.navigate("Solicitudes", { user })}
-        >
-          <View>
-            <Feather name="bell" size={24} color="#3d4943" />
-            {hasUnreadNotifications && <View style={styles.notificationDot} />}
-          </View>
-        </TouchableOpacity>
+        {activeTab === "buscar" ? (
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.navigate("Solicitudes", { user })}
+          >
+            <View>
+              <Feather name="bell" size={24} color="#3d4943" />
+              {hasUnreadNotifications && <View style={styles.notificationDot} />}
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
       {/* Main Content Area */}

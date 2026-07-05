@@ -187,7 +187,7 @@ export default function SolicitudesScreen() {
       [
         { text: "Volver Atrás", style: "cancel" },
         {
-          text: "Confirmar Rechazo",
+          text: "Si, confirmar",
           style: "destructive",
           onPress: async () => {
             try {
