@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform, ActivityIndicator, Image, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons, Feather } from "@expo/vector-icons";
@@ -20,12 +20,12 @@ export default function HomeCliente({ route, navigation }: any) {
 
   // Estados para notificaciones y polling en cliente
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [knownStatuses, setKnownStatuses] = useState<Record<number, string>>({});
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const knownStatuses = useRef<Record<number, string>>({});
+  const isInitialLoad = useRef(true);
 
 
 
-  const checkClientNotifications = async (isPoll = false) => {
+  const checkClientNotifications = useCallback(async (isPoll = false) => {
     try {
       // Cargar los IDs de notificaciones ya leídas/descartadas
       const dismissedVal = await getStorageItem("dismissed_notification_ids");
@@ -49,10 +49,10 @@ export default function HomeCliente({ route, navigation }: any) {
         currentStatuses[app.id] = app.status;
       });
 
-      if (isPoll && !isInitialLoad) {
+      if (isPoll && !isInitialLoad.current) {
         // Buscar si algún turno cambió de estado "pending" a "accepted" o "rejected"
         for (const app of list) {
-          const prevStatus = knownStatuses[app.id];
+          const prevStatus = knownStatuses.current[app.id];
           const newStatus = app.status;
           if (prevStatus === "pending" && (newStatus === "accepted" || newStatus === "rejected")) {
             const profName = app.professional_profile?.user?.name || "Profesional";
@@ -65,12 +65,12 @@ export default function HomeCliente({ route, navigation }: any) {
         }
       }
 
-      setKnownStatuses(currentStatuses);
-      setIsInitialLoad(false);
+      knownStatuses.current = currentStatuses;
+      isInitialLoad.current = false;
     } catch (error) {
       console.error("Error checking client notifications:", error);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -85,7 +85,7 @@ export default function HomeCliente({ route, navigation }: any) {
       return () => {
         clearInterval(intervalId);
       };
-    }, [knownStatuses, isInitialLoad])
+    }, [checkClientNotifications])
   );
 
   const TABS_NAMES: Record<string, string> = {

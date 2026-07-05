@@ -404,7 +404,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   optionItem: {
-    paddingHeight: 48,
     paddingHorizontal: 16,
     justifyContent: "center",
     height: 44,

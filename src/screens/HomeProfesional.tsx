@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, StatusBar, Platform, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
@@ -16,8 +16,9 @@ export default function HomeProfesional({ route, navigation }: any) {
 
   // Estados para notificaciones y polling de turnos
   const [hasPendingRequests, setHasPendingRequests] = useState(false);
-  const [knownPendingIds, setKnownPendingIds] = useState<number[]>([]);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+  const knownPendingIds = useRef<number[]>([]);
+  const isInitialLoad = useRef(true);
 
 
 
@@ -27,19 +28,37 @@ export default function HomeProfesional({ route, navigation }: any) {
     "perfil": "Mi Perfil",
   };
 
-  const checkPendingRequests = async (isPoll = false) => {
+  const checkPendingRequests = useCallback(async (isPoll = false) => {
     try {
       const response = await api.get("/appointments");
       const list = response.data || [];
+      
+      // 1. Solicitudes pendientes para notificaciones
       const pendingApps = list.filter((app: any) => app.status === "pending");
-      
       const pendingIds = pendingApps.map((app: any) => app.id);
-      
       setHasPendingRequests(pendingApps.length > 0);
 
-      if (isPoll && !isInitialLoad) {
+      // 2. Próximos clientes confirmados (accepted y a futuro)
+      const acceptedApps = list.filter((app: any) => app.status === "accepted");
+      const now = new Date();
+      const upcoming = acceptedApps.filter((app: any) => {
+        const appDate = new Date(`${app.date}T${app.start_time}`);
+        return appDate >= now;
+      });
+
+      // Ordenar ascendentemente (más cercanos primero)
+      upcoming.sort((a: any, b: any) => {
+        const dateA = new Date(`${a.date}T${a.start_time}`);
+        const dateB = new Date(`${b.date}T${b.start_time}`);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      // Guardar el top 3
+      setUpcomingAppointments(upcoming.slice(0, 3));
+
+      if (isPoll && !isInitialLoad.current) {
         // Detectar si hay IDs nuevos que no estaban en knownPendingIds
-        const newRequests = pendingIds.filter((id: number) => !knownPendingIds.includes(id));
+        const newRequests = pendingIds.filter((id: number) => !knownPendingIds.current.includes(id));
         if (newRequests.length > 0) {
           // Disparar notificación nativa del teléfono (OS Banner)
           // No native notification to avoid emulator crash, dot update is enough
@@ -47,12 +66,12 @@ export default function HomeProfesional({ route, navigation }: any) {
         }
       }
 
-      setKnownPendingIds(pendingIds);
-      setIsInitialLoad(false);
+      knownPendingIds.current = pendingIds;
+      isInitialLoad.current = false;
     } catch (error) {
       console.error("Error checking pending requests:", error);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -67,7 +86,7 @@ export default function HomeProfesional({ route, navigation }: any) {
       return () => {
         clearInterval(intervalId);
       };
-    }, [knownPendingIds, isInitialLoad])
+    }, [checkPendingRequests])
   );
 
   const handleLogout = async () => {
@@ -88,6 +107,13 @@ export default function HomeProfesional({ route, navigation }: any) {
     switch (activeTab) {
       case "negocio":
         const firstName = user.name ? user.name.split(" ")[0] : "Profesional";
+        const getGreeting = () => {
+          const hour = new Date().getHours();
+          if (hour >= 6 && hour < 13) return "Buenos días";
+          if (hour >= 13 && hour < 20) return "Buenas tardes";
+          return "Buenas noches";
+        };
+        const greeting = getGreeting();
         return (
           <ScrollView
             style={styles.scrollContainer}
@@ -95,43 +121,60 @@ export default function HomeProfesional({ route, navigation }: any) {
             showsVerticalScrollIndicator={false}
           >
             {/* Hero Section */}
-            <Text style={styles.welcomeText}>Buenos días, {firstName} 👋</Text>
+            <Text style={styles.welcomeText}>{greeting}, {firstName} 👋</Text>
 
             {/* Tus próximos clientes */}
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>Tus próximos clientes</Text>
               
-              {/* Card 1 */}
-              <View style={styles.clientCard}>
-                <Image
-                  source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuD991lyhiuuAvLYYJkcDbnS4X2jq0Y-gi-fQtYVTPzyc7W9BhC-9JuGhKDY9E5O3WQhaczbWn06_LWDZKEOgb5yIK4HDivN9Rq9qzhj4QmpTKzydhSyaQOeOOIZwET8N7BveTuz_11Se7fuFzEgzBElCy5l2-M3g52vQN0wbtOe-i_OiCUtkf6tJxNkmeNM9ZYYnHOuXxm1P2mruQvvPQx8GmUdhEr4QyFttahZk5ByVgHwAkakHOkSwEyBrQ4arN9VXUoTkzpvcQ" }}
-                  style={styles.clientAvatar}
-                />
-                <View style={styles.clientInfo}>
-                  <Text style={styles.clientName}>María López</Text>
-                  <Text style={styles.clientService}>Corte + Barba</Text>
+              {upcomingAppointments.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No tienes próximos clientes confirmados</Text>
                 </View>
-                <View style={styles.timeBadge}>
-                  <Text style={styles.timeBadgeText}>10:00</Text>
-                </View>
-              </View>
+              ) : (
+                upcomingAppointments.map((app: any) => {
+                  const clientUser = app.client || {};
+                  const service = app.service || {};
+                  return (
+                    <TouchableOpacity
+                      key={app.id}
+                      style={styles.clientCard}
+                      onPress={() => navigation.navigate("TurnoDetail", { appointmentId: app.id })}
+                      activeOpacity={0.7}
+                    >
+                      {clientUser.avatar_url ? (
+                        <Image
+                          source={{ uri: clientUser.avatar_url }}
+                          style={styles.clientAvatar}
+                        />
+                      ) : (
+                        <View style={styles.avatarPlaceholder}>
+                          <Feather name="user" size={24} color="#bccac1" />
+                        </View>
+                      )}
+                      <View style={styles.clientInfo}>
+                        <Text style={styles.clientName}>
+                          {`${clientUser.name || ""} ${clientUser.last_name || ""}`.trim() || "Cliente"}
+                        </Text>
+                        <Text style={styles.clientService}>
+                          {service.name || "Servicio"}
+                        </Text>
+                      </View>
+                      <View style={styles.timeBadge}>
+                        <Text style={styles.timeBadgeText}>
+                          {app.start_time ? app.start_time.substring(0, 5) : "--:--"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
 
-              {/* Card 2 */}
-              <View style={styles.clientCard}>
-                <Image
-                  source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuAsIEa1df9VW4fbw_dRZDCLuBAhW9QpJbtw2aSjBbq_v_mpiydiY5zv170JxW0oNwELJI9YPzo7NGfP1wh9iRSVl5ncQzv-FIMWyoUTU26_Slby9jd49poT3XxLeVeNBnfId3M1n-77dSS_ObGQ3jsDZIBrI7mLUBZRRXaCpcqWSNSRL5I9uVDNDe8wbon1RSbG4v5olGkjp4VY01kOjBEPniaW66nKAIxcwpHbTvqiU6cxFHZHLA_82Hwgm7EeUm89JxaBpX6nhg" }}
-                  style={styles.clientAvatar}
-                />
-                <View style={styles.clientInfo}>
-                  <Text style={styles.clientName}>Lucas Gómez</Text>
-                  <Text style={styles.clientService}>Solo Corte</Text>
-                </View>
-                <View style={styles.timeBadge}>
-                  <Text style={styles.timeBadgeText}>11:30</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity style={styles.outlineButton} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.outlineButton}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate("ProfessionalAppointments")}
+              >
                 <Text style={styles.outlineButtonText}>Ver más</Text>
               </TouchableOpacity>
             </View>
@@ -452,5 +495,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#181c1c",
+  },
+  emptyContainer: {
+    padding: 20,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#707d76",
+    textAlign: "center",
+  },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#ebefed",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
