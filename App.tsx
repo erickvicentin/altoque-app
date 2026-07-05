@@ -19,6 +19,7 @@ import TurnoDetailScreen from "./src/screens/TurnoDetailScreen";
 import CalendarioProfesional from "./src/screens/CalendarioProfesional";
 import BloquearSlot from "./src/screens/BloquearSlot";
 import ProfessionalAppointmentsScreen from "./src/screens/ProfessionalAppointmentsScreen";
+import DailyAppointmentsScreen from "./src/screens/DailyAppointmentsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -46,6 +47,7 @@ export default function App() {
         <Stack.Screen name="CalendarioProfesional" component={CalendarioProfesional} />
         <Stack.Screen name="BloquearSlot" component={BloquearSlot} />
         <Stack.Screen name="ProfessionalAppointments" component={ProfessionalAppointmentsScreen} />
+        <Stack.Screen name="DailyAppointments" component={DailyAppointmentsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

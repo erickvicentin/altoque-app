@@ -1,89 +1,285 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, StatusBar } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+  StatusBar,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import api from "../services/api";
 
-interface DayData {
-  day: number | null;
-  status: "none" | "available" | "unavailable";
-}
-
-const DAYS_IN_JULY: DayData[] = [
-  // Padding para empezar el miércoles (Julio 2026 empieza en Miércoles)
-  { day: null, status: "none" },
-  { day: null, status: "none" },
-  { day: null, status: "none" },
-  // Semana 1
-  { day: 1, status: "none" },
-  { day: 2, status: "none" },
-  { day: 3, status: "unavailable" },
-  { day: 4, status: "none" },
-  // Semana 2
-  { day: 5, status: "none" },
-  { day: 6, status: "available" },
-  { day: 7, status: "unavailable" },
-  { day: 8, status: "available" },
-  { day: 9, status: "available" },
-  { day: 10, status: "unavailable" },
-  { day: 11, status: "none" },
-  // Semana 3
-  { day: 12, status: "none" },
-  { day: 13, status: "unavailable" },
-  { day: 14, status: "available" },
-  { day: 15, status: "available" },
-  { day: 16, status: "unavailable" },
-  { day: 17, status: "available" },
-  { day: 18, status: "none" },
-  // Semana 4
-  { day: 19, status: "none" },
-  { day: 20, status: "available" },
-  { day: 21, status: "available" },
-  { day: 22, status: "unavailable" },
-  { day: 23, status: "available" },
-  { day: 24, status: "available" },
-  { day: 25, status: "none" },
-  // Semana 5
-  { day: 26, status: "none" },
-  { day: 27, status: "unavailable" },
-  { day: 28, status: "available" },
-  { day: 29, status: "unavailable" },
-  { day: 30, status: "available" },
-  { day: 31, status: "available" },
+const MONTH_NAMES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
 
-export default function CalendarioProfesional({ navigation, route }: any) {
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+const SPANISH_DAY_NAMES = [
+  "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"
+];
 
-  const handleDayPress = (day: number | null) => {
-    if (day !== null) {
-      setSelectedDay(day);
+export default function CalendarioProfesional() {
+  const navigation = useNavigation<any>();
+
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [professional, setProfessional] = useState<any | null>(null);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const profileRes = await api.get("/profile");
+      setProfessional(profileRes.data.user.professional_profile);
+
+      const appointmentsRes = await api.get("/appointments");
+      setAppointments(appointmentsRes.data || []);
+    } catch (error) {
+      console.error("Error loading professional calendar data:", error);
+      Alert.alert("Error", "No se pudo cargar la información del calendario.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getCellStyles = (item: DayData) => {
-    const isSelected = selectedDay === item.day;
-    let bgStyle = styles.dayCellDefault;
-    let textStyle = styles.dayTextDefault;
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
 
-    if (item.status === "available") {
-      bgStyle = styles.dayCellAvailable;
-      textStyle = styles.dayTextAvailable;
-    } else if (item.status === "unavailable") {
-      bgStyle = styles.dayCellUnavailable;
-      textStyle = styles.dayTextUnavailable;
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const normalizeDay = (day: string) => {
+    return day
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  };
+
+  const isDayWorking = (date: Date) => {
+    if (!professional?.working_days) {
+      return false;
     }
 
-    return {
-      bg: [
-        styles.dayCell,
-        bgStyle,
-        isSelected && styles.dayCellSelected,
-      ],
-      text: [
-        styles.dayText,
-        textStyle,
-      ],
+    let workingDays = professional.working_days;
+    if (typeof workingDays === 'string') {
+      try {
+        workingDays = JSON.parse(workingDays);
+      } catch (e) {
+        workingDays = workingDays.split(',').map((s: string) => s.trim());
+      }
+    }
+
+    const dayName = SPANISH_DAY_NAMES[date.getDay()];
+
+    // Case 1: working_days is an array of strings
+    if (Array.isArray(workingDays)) {
+      const normalizedDayName = normalizeDay(dayName);
+      return workingDays.some(
+        (workDay: string) => normalizeDay(workDay) === normalizedDayName
+      );
+    }
+
+    // Case 2: working_days is a key-value object (e.g. {"Lunes": { "is_active": true, ... }})
+    if (typeof workingDays === 'object' && workingDays !== null) {
+      const normalizedDayName = normalizeDay(dayName);
+      const matchedKey = Object.keys(workingDays).find(
+        (key) => normalizeDay(key) === normalizedDayName
+      );
+      if (matchedKey) {
+        return !!workingDays[matchedKey]?.is_active;
+      }
+    }
+
+    return false;
+  };
+
+  const getDayStatus = (date: Date): "available" | "unavailable" => {
+    if (!isDayWorking(date)) {
+      return "unavailable";
+    }
+
+    if (!professional) return "unavailable";
+
+    let workingDays = professional.working_days;
+    if (typeof workingDays === 'string') {
+      try {
+        workingDays = JSON.parse(workingDays);
+      } catch (e) {}
+    }
+
+    const dayName = SPANISH_DAY_NAMES[date.getDay()];
+    const normalizedDayName = normalizeDay(dayName);
+
+    let open1 = professional?.open_time_1 || "08:00";
+    let close1 = professional?.close_time_1 || "12:00";
+    let hasSecond = professional?.has_second_range || false;
+    let open2 = professional?.open_time_2 || "15:30";
+    let close2 = professional?.close_time_2 || "21:00";
+
+    if (typeof workingDays === 'object' && workingDays !== null && !Array.isArray(workingDays)) {
+      const matchedKey = Object.keys(workingDays).find(
+        (key) => normalizeDay(key) === normalizedDayName
+      );
+      if (matchedKey) {
+        const daySchedule = workingDays[matchedKey];
+        open1 = daySchedule.open_time_1 || open1;
+        close1 = daySchedule.close_time_1 || close1;
+        hasSecond = !!daySchedule.has_second_range;
+        open2 = daySchedule.open_time_2 || open2;
+        close2 = daySchedule.close_time_2 || close2;
+      }
+    }
+
+    const getMinutes = (timeStr: string) => {
+      const parts = timeStr.split(":");
+      return Number(parts[0]) * 60 + Number(parts[1]);
     };
+
+    const range1Start = getMinutes(open1);
+    const range1End = getMinutes(close1);
+    const range2Start = getMinutes(open2);
+    const range2End = getMinutes(close2);
+
+    // Generate 30-minute intervals for this day's schedule
+    const intervals: [number, number][] = [];
+    
+    let curr = range1Start;
+    while (curr + 30 <= range1End) {
+      intervals.push([curr, curr + 30]);
+      curr += 30;
+    }
+
+    if (hasSecond) {
+      curr = range2Start;
+      while (curr + 30 <= range2End) {
+        intervals.push([curr, curr + 30]);
+        curr += 30;
+      }
+    }
+
+    if (intervals.length === 0) {
+      return "unavailable";
+    }
+
+    // Get appointments on this date
+    const yearStr = date.getFullYear();
+    const monthStr = String(date.getMonth() + 1).padStart(2, "0");
+    const dayStr = String(date.getDate()).padStart(2, "0");
+    const formattedDate = `${yearStr}-${monthStr}-${dayStr}`;
+
+    const dayApps = appointments.filter((app) => {
+      return (
+        app.date === formattedDate &&
+        (app.status === "accepted" ||
+          app.status === "pending" ||
+          app.status === "blocked")
+      );
+    });
+
+    const appRanges = dayApps.map((app) => {
+      const startClean = app.start_time.substring(0, 5);
+      const endClean = app.end_time.substring(0, 5);
+      return [getMinutes(startClean), getMinutes(endClean)];
+    });
+
+    // Check if there's at least one 30-minute interval that is free
+    const hasFreeInterval = intervals.some(([iStart, iEnd]) => {
+      return !appRanges.some(([aStart, aEnd]) => iStart < aEnd && iEnd > aStart);
+    });
+
+    return hasFreeInterval ? "available" : "unavailable";
+  };
+
+  const handleDayPress = (date: Date) => {
+    const yearStr = date.getFullYear();
+    const monthStr = String(date.getMonth() + 1).padStart(2, "0");
+    const dayStr = String(date.getDate()).padStart(2, "0");
+    const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
+
+    navigation.navigate("DailyAppointments", { dateStr });
+  };
+
+  const renderCalendarDays = () => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+
+    const days = [];
+
+    // Render placeholders for days of previous month
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(<View key={`empty-prev-${i}`} style={styles.dayCellEmpty} />);
+    }
+
+    // Render days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const status = getDayStatus(date);
+
+      const isToday =
+        new Date().getDate() === day &&
+        new Date().getMonth() === month &&
+        new Date().getFullYear() === year;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isPast = date < today;
+
+      const cellBgStyle = isPast
+        ? styles.dayCellPast
+        : status === "available"
+        ? styles.dayCellAvailable
+        : styles.dayCellUnavailable;
+
+      const cellTextStyle = isPast
+        ? styles.dayTextPast
+        : status === "available"
+        ? styles.dayTextAvailable
+        : styles.dayTextUnavailable;
+
+      days.push(
+        <TouchableOpacity
+          key={`day-${day}`}
+          style={[
+            styles.dayCell,
+            cellBgStyle,
+            isToday && styles.dayCellToday,
+          ]}
+          onPress={() => handleDayPress(date)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.dayText, cellTextStyle, isToday && styles.dayTextToday]}>
+            {day}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    // Render placeholders for days of next month to complete the row
+    const totalCells = firstDayIndex + daysInMonth;
+    const remainder = totalCells % 7;
+    const cellsNeededAtEnd = remainder === 0 ? 0 : 7 - remainder;
+    for (let i = 0; i < cellsNeededAtEnd; i++) {
+      days.push(<View key={`empty-next-${i}`} style={styles.dayCellEmpty} />);
+    }
+
+    return days;
   };
 
   return (
@@ -110,48 +306,35 @@ export default function CalendarioProfesional({ navigation, route }: any) {
       >
         {/* Month Selector */}
         <View style={styles.monthSelector}>
-          <TouchableOpacity style={styles.monthNavButton} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.monthNavButton} activeOpacity={0.7} onPress={handlePrevMonth}>
             <MaterialIcons name="chevron-left" size={24} color="#3d4943" />
           </TouchableOpacity>
-          <Text style={styles.monthTitle}>Julio 2026</Text>
-          <TouchableOpacity style={styles.monthNavButton} activeOpacity={0.7}>
+          <Text style={styles.monthTitle}>{MONTH_NAMES[month]} {year}</Text>
+          <TouchableOpacity style={styles.monthNavButton} activeOpacity={0.7} onPress={handleNextMonth}>
             <MaterialIcons name="chevron-right" size={24} color="#3d4943" />
           </TouchableOpacity>
         </View>
 
-        {/* Calendar Widget */}
-        <View style={styles.calendarWidget}>
-          {/* Days Header */}
-          <View style={styles.daysHeader}>
-            {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((dayName) => (
-              <Text key={dayName} style={styles.dayHeaderLabel}>
-                {dayName}
-              </Text>
-            ))}
+        {loading ? (
+          <ActivityIndicator size="large" color="#00694c" style={{ marginTop: 40, marginBottom: 40 }} />
+        ) : (
+          /* Calendar Widget */
+          <View style={styles.calendarWidget}>
+            {/* Days Header */}
+            <View style={styles.daysHeader}>
+              {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((dayName) => (
+                <Text key={dayName} style={styles.dayHeaderLabel}>
+                  {dayName}
+                </Text>
+              ))}
+            </View>
+
+            {/* Days Grid */}
+            <View style={styles.daysGrid}>
+              {renderCalendarDays()}
+            </View>
           </View>
-
-          {/* Days Grid */}
-          <View style={styles.daysGrid}>
-            {DAYS_IN_JULY.map((item, index) => {
-              if (item.day === null) {
-                return <View key={`empty-${index}`} style={styles.dayCellEmpty} />;
-              }
-
-              const cellStyles = getCellStyles(item);
-
-              return (
-                <TouchableOpacity
-                  key={`day-${item.day}`}
-                  style={cellStyles.bg}
-                  onPress={() => handleDayPress(item.day)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={cellStyles.text}>{item.day}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+        )}
 
         {/* Legend Section */}
         <View style={styles.legendContainer}>
@@ -166,7 +349,7 @@ export default function CalendarioProfesional({ navigation, route }: any) {
             <View style={[styles.legendIndicatorBg, { backgroundColor: "#ffdad6" }]}>
               <View style={[styles.legendIndicatorDot, { backgroundColor: "#ba1a1a" }]} />
             </View>
-            <Text style={styles.legendText}>Sin turnos disponibles</Text>
+            <Text style={styles.legendText}>Sin turnos disponibles o no laborable</Text>
           </View>
         </View>
 
@@ -174,9 +357,9 @@ export default function CalendarioProfesional({ navigation, route }: any) {
         <View style={styles.statsCard}>
           <MaterialIcons name="info" size={20} color="#0d1f1b" style={styles.statsIcon} />
           <View style={styles.statsContent}>
-            <Text style={styles.statsTitle}>Resumen de disponibilidad</Text>
+            <Text style={styles.statsTitle}>Uso del Calendario</Text>
             <Text style={styles.statsDescription}>
-              Tienes 14 días con espacios abiertos este mes. Puedes bloquear slots específicos para vacaciones o mantenimiento.
+              Presiona sobre cualquier día laborable (en verde) para ver la lista de turnos programados en esa fecha. Puedes bloquear horas específicas usando el botón de abajo.
             </Text>
           </View>
         </View>
@@ -234,7 +417,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 110, // Para dar espacio al footer fijo
+    paddingBottom: 110, // space for fixed footer
   },
   monthSelector: {
     flexDirection: "row",
@@ -293,12 +476,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  dayCellSelected: {
+  dayCellToday: {
     borderWidth: 2,
     borderColor: "#00694c",
-  },
-  dayCellDefault: {
-    backgroundColor: "transparent",
   },
   dayCellAvailable: {
     backgroundColor: "#adedd8",
@@ -306,18 +486,24 @@ const styles = StyleSheet.create({
   dayCellUnavailable: {
     backgroundColor: "#ffdad6",
   },
+  dayCellPast: {
+    backgroundColor: "transparent",
+  },
   dayText: {
     fontSize: 14,
     fontWeight: "500",
   },
-  dayTextDefault: {
-    color: "#181c1c",
+  dayTextToday: {
+    fontWeight: "700",
   },
   dayTextAvailable: {
     color: "#2a6959",
   },
   dayTextUnavailable: {
     color: "#ba1a1a",
+  },
+  dayTextPast: {
+    color: "#707d76",
   },
   legendContainer: {
     gap: 16,
