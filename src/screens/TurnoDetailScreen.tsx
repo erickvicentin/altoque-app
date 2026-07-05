@@ -90,12 +90,31 @@ export default function TurnoDetailScreen() {
 
   const isProfessional = currentUser?.role === "professional";
 
+  const parseExternalClientInfo = (notes?: string) => {
+    if (!notes) return null;
+    const nameMatch = notes.match(/Cliente externo:\s*(.*)/);
+    const dobMatch = notes.match(/F\.\s*Nac:\s*(.*)/);
+    const telMatch = notes.match(/Tel:\s*(.*)/);
+    const addressMatch = notes.match(/Domicilio:\s*(.*)/);
+
+    if (!nameMatch && !dobMatch && !telMatch && !addressMatch) return null;
+
+    return {
+      name: nameMatch ? nameMatch[1].trim() : null,
+      birthDate: dobMatch ? dobMatch[1].trim() : null,
+      phone: telMatch ? telMatch[1].trim() : null,
+      address: addressMatch ? addressMatch[1].trim() : null,
+    };
+  };
+
+  const externalClient = appointment ? parseExternalClientInfo(appointment.notes) : null;
+
   const handleWhatsApp = () => {
     const phone = isProfessional
-      ? appointment?.client?.phone
+      ? (appointment?.client?.phone || externalClient?.phone)
       : appointment?.professional_profile?.user?.phone;
     const userName = isProfessional
-      ? `${appointment?.client?.name || ""} ${appointment?.client?.last_name || ""}`.trim() || "el cliente"
+      ? `${appointment?.client?.name || ""} ${appointment?.client?.last_name || ""}`.trim() || externalClient?.name || "el cliente"
       : appointment?.professional_profile?.user?.name || "el profesional";
     
     if (phone) {
@@ -290,14 +309,16 @@ export default function TurnoDetailScreen() {
   const price = appointment.service ? `$${appointment.service.price}` : "$0";
   
   const professionalName = `${appointment.professional_profile?.user?.name || ""} ${appointment.professional_profile?.user?.last_name || ""}`.trim() || "Profesional";
-  const clientName = `${appointment.client?.name || ""} ${appointment.client?.last_name || ""}`.trim() || "Cliente";
+  const clientName = appointment.client
+    ? `${appointment.client.name || ""} ${appointment.client.last_name || ""}`.trim()
+    : (externalClient?.name || "Cliente Externo");
   
   const location = appointment.professional_profile?.shop_address || "Domicilio de atención";
   const hasPhysicalShop = appointment.professional_profile?.has_physical_shop ?? !!appointment.professional_profile?.shop_address;
   
   const addressDetail = appointment.address
     ? `${appointment.address.alias}: ${appointment.address.address_line}`
-    : "Atención a domicilio (dirección no especificada)";
+    : (externalClient?.address || "Atención a domicilio (dirección no especificada)");
 
   const avatarUrl = isProfessional 
     ? appointment.client?.avatar_url 
@@ -375,7 +396,8 @@ export default function TurnoDetailScreen() {
       );
     }
 
-    if (appointment.status === "accepted") {
+    if (appointment.status === "accepted" || appointment.status === "blocked") {
+      const isBlocked = appointment.status === "blocked";
       return (
         <View style={{ gap: 8 }}>
           <TouchableOpacity
@@ -384,11 +406,13 @@ export default function TurnoDetailScreen() {
             disabled={cancelling}
           >
             <Text style={styles.cancelButtonText}>
-              {cancelling ? "Procesando..." : "Cancelar Turno"}
+              {cancelling ? "Procesando..." : isBlocked ? "Cancelar Bloqueo" : "Cancelar Turno"}
             </Text>
           </TouchableOpacity>
           <Text style={[styles.warningText, { color: "#707d76" }]}>
-            Puedes cancelar este turno confirmado si tienes un imprevisto. El cliente será notificado.
+            {isBlocked 
+              ? "Puedes liberar este slot cancelando el bloqueo. El horario volverá a estar disponible." 
+              : "Puedes cancelar este turno confirmado si tienes un imprevisto. El cliente será notificado."}
           </Text>
         </View>
       );
@@ -481,6 +505,24 @@ export default function TurnoDetailScreen() {
           </View>
         </View>
 
+        {externalClient && (
+          <View style={styles.externalClientCard}>
+            <Text style={styles.externalClientTitle}>Detalles del Cliente Externo</Text>
+            {externalClient.phone ? (
+              <View style={styles.externalClientRow}>
+                <Feather name="phone" size={16} color="#707d76" />
+                <Text style={styles.externalClientText}>Teléfono: {externalClient.phone}</Text>
+              </View>
+            ) : null}
+            {externalClient.birthDate ? (
+              <View style={styles.externalClientRow}>
+                <Feather name="gift" size={16} color="#707d76" />
+                <Text style={styles.externalClientText}>F. Nacimiento: {externalClient.birthDate}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+
         {/* Date / Time Bento */}
         <View style={styles.bentoContainer}>
           <View style={styles.bentoItem}>
@@ -521,7 +563,7 @@ export default function TurnoDetailScreen() {
         {/* Cost Pill */}
         <View style={styles.costContainer}>
           <View style={styles.costPill}>
-            <Text style={styles.costText}>Total: {price}</Text>
+            <Text style={styles.costText}>Total del servicio: {price}</Text>
           </View>
         </View>
 
@@ -678,7 +720,6 @@ const styles = StyleSheet.create({
   },
   costContainer: {
     alignItems: "center",
-    marginTop: 8,
   },
   costPill: {
     backgroundColor: "#f5fff7",
@@ -700,7 +741,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
   },
   cancelButtonDisabled: {
     backgroundColor: "#bccac1",
@@ -717,7 +757,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
   },
   acceptButtonText: {
     color: "#ffffff",
@@ -740,9 +779,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#b91c1c",
     textAlign: "center",
-    marginTop: 4,
     paddingHorizontal: 16,
     lineHeight: 18,
     fontWeight: "500",
+  },
+  externalClientCard: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#bccac1",
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  externalClientTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#181c1c",
+    marginBottom: 4,
+  },
+  externalClientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  externalClientText: {
+    fontSize: 14,
+    color: "#3d4943",
   },
 });

@@ -209,6 +209,12 @@ export default function ProfessionalProfileScreen() {
     professional.isShop
   );
 
+  if (professional.response_time && professional.response_time !== "N/A") {
+    detail.responseTime = professional.response_time;
+  } else if (professional.responseTime && professional.responseTime !== "N/A") {
+    detail.responseTime = professional.responseTime;
+  }
+
   if (professional.id) {
     detail.bio = professional.bio || '';
   } else if (professional.bio !== undefined) {
