@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const localhost = "http://192.168.0.120:8000";
+const localhost = "http://127.0.0.1:8000";
 
 const api = axios.create({
   // tenemos que reemplazar con IP local de la PC donde corremos
